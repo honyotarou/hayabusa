@@ -3,11 +3,32 @@ import HayabusaKit
 
 @main
 struct HayabusaCLI {
+    private static func logErr(_ message: String) {
+        if let data = (message + "\n").data(using: .utf8) {
+            FileHandle.standardError.write(data)
+        }
+    }
+
+    /// Bind / listen failures (e.g. EADDRINUSE) should not crash with Swift's top-level error trap.
+    private static func handleServerRunError(_ error: Error, bindAddress: String, port: Int) {
+        let ns = error as NSError
+        let addrInUse = (ns.domain == NSPOSIXErrorDomain && ns.code == 48)
+            || String(describing: error).contains("Address already in use")
+        if addrInUse {
+            logErr("[Hayabusa] ポート \(port)（\(bindAddress)）は既に使用されています。")
+            logErr("  別ポート: --port 8081 または HAYABUSA_PORT=8081")
+            logErr("  占有確認: lsof -nP -iTCP:\(port) -sTCP:LISTEN")
+        } else {
+            logErr("[Hayabusa] サーバー起動に失敗しました: \(error)")
+        }
+    }
+
     static func main() async throws {
         let args = Array(CommandLine.arguments.dropFirst())
 
         // Parse CLI arguments
         var modelPath: String?
+        var cliPort: Int?
         var slotCount = 4
         var ctxPerSlot: UInt32 = 4096
         var backend = "llama"
@@ -38,6 +59,11 @@ struct HayabusaCLI {
             case "--backend":
                 i += 1
                 if i < args.count { backend = args[i].lowercased() }
+            case "--port":
+                i += 1
+                if i < args.count, let p = Int(args[i]), p > 0, p <= 65_535 {
+                    cliPort = p
+                }
             case "--max-memory":
                 i += 1
                 if i < args.count {
@@ -108,6 +134,7 @@ struct HayabusaCLI {
         guard isSpeculativeMode || isVllmMode || (resolvedPath != nil && !resolvedPath!.isEmpty) else {
             print("Usage: hayabusa <model-path> [--backend llama|mlx|vllm-mlx] [--slots N] [--ctx-per-slot N]")
             print("  --backend             Inference backend: llama (default), mlx, or vllm-mlx")
+            print("  --port N              HTTP listen port (default: 8080, or HAYABUSA_PORT)")
             print("  --slots               KV cache slot count (default: 4)")
             print("  --ctx-per-slot        Context size per slot (default: 4096, llama only)")
             print("  --max-memory          MLX memory limit in GB (e.g. 14GB, mlx only)")
@@ -146,7 +173,9 @@ struct HayabusaCLI {
             Foundation.exit(1)
         }
 
-        let port = Int(ProcessInfo.processInfo.environment["HAYABUSA_PORT"] ?? "8080") ?? 8080
+        let port = cliPort
+            ?? Int(ProcessInfo.processInfo.environment["HAYABUSA_PORT"] ?? "8080")
+            ?? 8080
 
         var engine: any InferenceEngine
         var speculativeDecoder: SpeculativeDecoder?
@@ -270,6 +299,11 @@ struct HayabusaCLI {
             kvQuantizeMode: kvQuantize,
             layerSkipConfig: activeLayerSkip
         )
-        try await server.run()
+        do {
+            try await server.run()
+        } catch {
+            handleServerRunError(error, bindAddress: bindAddress, port: port)
+            Foundation.exit(1)
+        }
     }
 }
