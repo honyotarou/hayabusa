@@ -25,12 +25,19 @@ struct ChatResponse: Encodable, Sendable {
         let total_tokens: Int
     }
 
-    init(id: String, model: String, content: String, promptTokens: Int, completionTokens: Int) {
+    init(
+        id: String,
+        model: String,
+        content: String,
+        promptTokens: Int,
+        completionTokens: Int,
+        fallbackSubject: String? = nil
+    ) {
         self.id = id
         self.object = "chat.completion"
         self.created = Int(Date().timeIntervalSince1970)
         self.model = model
-        let sanitizedContent = content.sanitizedChartResponse
+        let sanitizedContent = content.sanitizedChartResponse(fallbackSubject: fallbackSubject)
         self.choices = [
             Choice(
                 index: 0,
@@ -47,7 +54,7 @@ struct ChatResponse: Encodable, Sendable {
 }
 
 private extension String {
-    var sanitizedChartResponse: String {
+    func sanitizedChartResponse(fallbackSubject: String?) -> String {
         var result = self.trimmingCharacters(in: .whitespacesAndNewlines)
 
         while let start = result.range(of: "<think>"),
@@ -59,10 +66,10 @@ private extension String {
         if let soapStart = result.range(of: "【S】") {
             result = String(result[soapStart.lowerBound...])
             if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
-                return Self.fallbackChartResponse
+                return Self.recoveredChartResponse(subject: fallbackSubject)
             }
         } else if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
-            return Self.fallbackChartResponse
+            return Self.recoveredChartResponse(subject: fallbackSubject)
         } else if !result.isEmpty {
             result = "【S】\n" + result
         }
@@ -98,10 +105,15 @@ private extension String {
         return Double(asciiLetters.count) / Double(letters.count) > 0.45
     }
 
-    static var fallbackChartResponse: String {
-        """
+    static func recoveredChartResponse(subject: String?) -> String {
+        let subjectText = subject?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        let safeSubject = subjectText?.isEmpty == false ? subjectText! : "未記載"
+
+        return """
         【S】
-        出力形式が崩れたため、再生成が必要です。
+        \(safeSubject)
 
         【O】
         未記載

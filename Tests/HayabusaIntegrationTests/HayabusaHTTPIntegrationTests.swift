@@ -66,7 +66,11 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         {"messages":[{"role":"user","content":"56歳男性、脚立から落ちて腰痛と右足痛"}],"max_tokens":16}
         """)
 
-        XCTAssertTrue(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertFalse(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("56歳男性、脚立から落ちて腰痛と右足痛"), text)
+        XCTAssertTrue(text.contains("【O】"), text)
+        XCTAssertTrue(text.contains("未記載"), text)
         XCTAssertFalse(text.contains("No content before"), text)
         XCTAssertFalse(text.contains("Analyze the Input"), text)
         XCTAssertFalse(text.contains("56-year-old male"), text)
@@ -87,7 +91,10 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         {"messages":[{"role":"user","content":"56歳男性、脚立から落ちて腰痛と右足痛"}],"max_tokens":16}
         """)
 
-        XCTAssertTrue(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertFalse(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("56歳男性、脚立から落ちて腰痛と右足痛"), text)
+        XCTAssertTrue(text.contains("【P】"), text)
         XCTAssertFalse(text.contains("Analyze the Input"), text)
         XCTAssertFalse(text.contains("Drafting the Content"), text)
         XCTAssertFalse(text.contains("Chief Complaint"), text)

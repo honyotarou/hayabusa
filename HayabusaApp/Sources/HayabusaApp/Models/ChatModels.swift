@@ -108,7 +108,7 @@ private extension String {
     static var fallbackChartResponse: String {
         """
         【S】
-        出力形式が崩れたため、再生成が必要です。
+        未記載
 
         【O】
         未記載

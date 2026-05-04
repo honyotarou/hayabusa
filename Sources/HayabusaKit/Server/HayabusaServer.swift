@@ -81,7 +81,8 @@ package struct HayabusaServer {
                 model: chatRequest.model ?? "local",
                 content: result.text,
                 promptTokens: result.promptTokens,
-                completionTokens: result.completionTokens
+                completionTokens: result.completionTokens,
+                fallbackSubject: chatRequest.messages.last(where: { $0.role == "user" })?.content
             )
 
             let jsonData = try JSONEncoder().encode(response)
