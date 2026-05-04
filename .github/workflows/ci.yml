@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-harness:
+    name: Swift harness (full)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # mlx-swift-lm requires Swift tools 6.1 (Package.swift); ships with Xcode 16.3+.
+          xcode-version: '16.3'
+
+      - name: Run harness (full)
+        env:
+          # Shared libllama breaks xctest load (@rpath); static link in CI only.
+          HAYABUSA_LLAMA_STATIC: "1"
+        run: ./scripts/harness.sh full

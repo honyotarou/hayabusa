@@ -2,7 +2,7 @@ import Foundation
 import CLlama
 
 /// KV Cache quantization mode.
-enum KVQuantizeMode: String {
+package enum KVQuantizeMode: String {
     case off       // float16 (default)
     case int8      // Q8_0 quantization (~50% memory reduction)
     /// TurboQuant-style KV: uses ``GGML_TYPE_TQ2_0`` (ggml no longer exposes TQ3_0 names).
@@ -30,7 +30,7 @@ enum KVQuantizeMode: String {
         }
     }
 
-    var description: String {
+    package var description: String {
         switch self {
         case .off:  return "float16 (default)"
         case .int8: return "int8 (Q8_0, ~50% memory savings)"
@@ -116,7 +116,7 @@ struct KVMemoryEstimate {
 /// Extended LlamaEngine initializer that supports KV cache quantization.
 extension LlamaEngine {
     /// Create a LlamaEngine with optional KV cache quantization.
-    static func withQuantization(
+    package static func withQuantization(
         modelPath: String,
         slotCount: Int = 4,
         perSlotCtx: UInt32 = 4096,

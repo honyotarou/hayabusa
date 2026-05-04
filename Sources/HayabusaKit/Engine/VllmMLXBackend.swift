@@ -3,14 +3,14 @@ import Foundation
 /// Backend that proxies inference requests to an external vllm-mlx server.
 /// vllm-mlx exposes OpenAI-compatible endpoints, so we forward
 /// /v1/chat/completions and parse the response (including SSE streaming).
-final class VllmMLXBackend: InferenceEngine, @unchecked Sendable {
-    let modelDescription: String
-    let slotCount: Int = 1  // proxy — single logical slot
+package final class VllmMLXBackend: InferenceEngine, @unchecked Sendable {
+    package let modelDescription: String
+    package let slotCount: Int = 1  // proxy — single logical slot
 
     private let endpoint: URL
     private let session: URLSession
 
-    init(endpoint urlString: String) async throws {
+    package init(endpoint urlString: String) async throws {
         guard let url = URL(string: urlString) else {
             throw HayabusaError.modelLoadFailed("Invalid vllm-mlx endpoint URL: \(urlString)")
         }
@@ -30,7 +30,7 @@ final class VllmMLXBackend: InferenceEngine, @unchecked Sendable {
 
     // MARK: - InferenceEngine
 
-    func generate(
+    package func generate(
         messages: [ChatMessage],
         maxTokens: Int,
         temperature: Float,
@@ -110,13 +110,13 @@ final class VllmMLXBackend: InferenceEngine, @unchecked Sendable {
         )
     }
 
-    func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
+    package func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
         // Single proxy slot — always report as idle (the real scheduling is
         // handled by the vllm-mlx server).
         return [(index: 0, state: "proxy", priority: "n/a", pos: 0)]
     }
 
-    func memoryInfo() -> EngineMemoryInfo? {
+    package func memoryInfo() -> EngineMemoryInfo? {
         // We don't have direct access to the vllm-mlx process memory.
         // Return nil so the server reports "unknown" pressure.
         return nil

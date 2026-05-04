@@ -1,13 +1,19 @@
 import Foundation
 import CLlama
 
-struct GenerationResult {
+package struct GenerationResult {
     let text: String
     let promptTokens: Int
     let completionTokens: Int
+
+    package init(text: String, promptTokens: Int, completionTokens: Int) {
+        self.text = text
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+    }
 }
 
-final class LlamaEngine: InferenceEngine, @unchecked Sendable {
+package final class LlamaEngine: InferenceEngine, @unchecked Sendable {
     private let model: OpaquePointer
     private let vocab: OpaquePointer
     private let chatTemplate: String?
@@ -18,8 +24,8 @@ final class LlamaEngine: InferenceEngine, @unchecked Sendable {
     private let perSlotCtx: UInt32
     private let nBatch: Int32
 
-    let modelDescription: String
-    let slotCount: Int
+    package let modelDescription: String
+    package let slotCount: Int
     private let isGemmaModel: Bool
 
     // --- Scheduler state (accessed only on queue) ---
@@ -112,7 +118,7 @@ final class LlamaEngine: InferenceEngine, @unchecked Sendable {
 
     // MARK: - Public API
 
-    func generate(
+    package func generate(
         messages: [ChatMessage],
         maxTokens: Int = 2048,
         temperature: Float = 0.7,
@@ -144,7 +150,7 @@ final class LlamaEngine: InferenceEngine, @unchecked Sendable {
         }
     }
 
-    func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
+    package func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
         kvCacheManager.slotSummary()
     }
 

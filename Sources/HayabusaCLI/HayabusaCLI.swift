@@ -1,8 +1,8 @@
 import Foundation
-import Hummingbird
+import HayabusaKit
 
 @main
-struct HayabusaApp {
+struct HayabusaCLI {
     static func main() async throws {
         let args = Array(CommandLine.arguments.dropFirst())
 

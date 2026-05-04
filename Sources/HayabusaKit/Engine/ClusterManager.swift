@@ -3,7 +3,7 @@ import Network
 
 // MARK: - ClusterNode
 
-struct ClusterNode: Sendable {
+package struct ClusterNode: Sendable {
     let id: String          // "host:port"
     let host: String
     let port: Int
@@ -31,7 +31,7 @@ struct ClusterNode: Sendable {
 /// Advertises the local node via `NWListener` and discovers peers via `NWBrowser`.
 /// Uses NWConnection to resolve peer IPs, then queries HTTP API for node metadata.
 /// Uses Uzu (bandwidth-first) routing for node selection.
-final class ClusterManager: @unchecked Sendable {
+package final class ClusterManager: @unchecked Sendable {
     private let httpPort: Int
     private let backend: String
     private let model: String
@@ -47,7 +47,7 @@ final class ClusterManager: @unchecked Sendable {
 
     private let serviceType = "_hayabusa._tcp"
 
-    init(httpPort: Int, backend: String, model: String, slots: Int, spilloverThreshold: Double = 0.8) {
+    package init(httpPort: Int, backend: String, model: String, slots: Int, spilloverThreshold: Double = 0.8) {
         self.httpPort = httpPort
         self.backend = backend
         self.model = model
@@ -57,7 +57,7 @@ final class ClusterManager: @unchecked Sendable {
 
     // MARK: - Start / Stop
 
-    func start() {
+    package func start() {
         // Register local node with Uzu router
         let localIP = ClusterManager.getLocalIPv4() ?? "127.0.0.1"
         let localId = "\(localIP):\(httpPort)"
@@ -288,7 +288,7 @@ final class ClusterManager: @unchecked Sendable {
     // MARK: - Explicit Peer Registration
 
     /// Register a peer by address (e.g., "192.168.11.49:8080" or "192.168.11.49").
-    func addExplicitPeer(_ address: String) {
+    package func addExplicitPeer(_ address: String) {
         let parts = address.split(separator: ":")
         let host = String(parts[0])
         let port = parts.count > 1 ? Int(parts[1]) ?? 8080 : 8080
@@ -344,9 +344,7 @@ final class ClusterManager: @unchecked Sendable {
     private func handlePeerRemoved(_ result: NWBrowser.Result) {
         guard case .service(let name, _, _, _) = result.endpoint else { return }
         lock.lock()
-        // Remove nodes that might correspond to this service
-        let toRemove = nodes.filter { !$0.value.isLocal }
-        // We don't have exact matching info, so just log for now
+        // TODO: map removed Bonjour service to node ids and prune `nodes`
         lock.unlock()
         print("[Cluster] Service removed: \(name)")
     }

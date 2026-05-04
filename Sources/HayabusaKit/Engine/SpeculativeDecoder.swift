@@ -22,7 +22,7 @@ struct SpeculativeMetrics: Sendable {
 ///   2. Target model evaluates all draft tokens in one batch (parallel verify)
 ///   3. Compare: accept matching prefix, reject from first mismatch
 ///   4. Continue from accepted position
-final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
+package final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
     private let draftEngine: LlamaEngine
     private let targetEngine: LlamaEngine
     private let speculativeTokens: Int
@@ -46,10 +46,10 @@ final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
 
     private(set) var metrics = SpeculativeMetrics()
 
-    let modelDescription: String
-    let slotCount: Int
+    package let modelDescription: String
+    package let slotCount: Int
 
-    init(
+    package init(
         draftModelPath: String,
         targetModelPath: String,
         slotCount: Int = 2,
@@ -146,7 +146,7 @@ final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
 
     // MARK: - InferenceEngine
 
-    func generate(
+    package func generate(
         messages: [ChatMessage],
         maxTokens: Int,
         temperature: Float,
@@ -170,11 +170,11 @@ final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
         }
     }
 
-    func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
+    package func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
         targetKVManager.slotSummary()
     }
 
-    func memoryInfo() -> EngineMemoryInfo? {
+    package func memoryInfo() -> EngineMemoryInfo? {
         targetEngine.memoryInfo()
     }
 

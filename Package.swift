@@ -10,7 +10,9 @@ let package = Package(
     dependencies: [
         .package(path: "LocalPolicy"),
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // Pin revision: upstream no longer tracks Swift 5.10; main uses swift-tools 6.1 (Xcode ≥16.3).
+        // Bump intentionally after `swift package update` + local `harness full`.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "7e2b7107be52ffbfe488f3c7987d3f52c1858b4b"),
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.0.0"),
     ],
@@ -20,6 +22,9 @@ let package = Package(
             path: "Sources/CLlama",
             linkerSettings: [
                 .unsafeFlags([
+                    // Newer llama.cpp (BUILD_SHARED_LIBS=ON) often installs libllama*.dylib under build/bin;
+                    // older / static layouts keep archives under build/src.
+                    "-L\(llamaBuildDir)/bin",
                     "-L\(llamaBuildDir)/src",
                     "-L\(llamaBuildDir)/ggml/src",
                     "-L\(llamaBuildDir)/ggml/src/ggml-metal",
@@ -42,6 +47,16 @@ let package = Package(
         .executableTarget(
             name: "Hayabusa",
             dependencies: [
+                "HayabusaKit",
+                // Composition root must link CLlama: SPM does not always propagate linkerSettings
+                // from nested targets to the top-level executable (CI: ld: library 'llama' not found).
+                "CLlama",
+            ],
+            path: "Sources/HayabusaCLI"
+        ),
+        .target(
+            name: "HayabusaKit",
+            dependencies: [
                 .product(name: "HayabusaLocalPolicy", package: "LocalPolicy"),
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
@@ -51,7 +66,16 @@ let package = Package(
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 "CLlama",
             ],
-            path: "Sources/Hayabusa"
+            path: "Sources/HayabusaKit",
+            exclude: ["Resources/genome-viewer.html"]
+        ),
+        .testTarget(
+            name: "HayabusaIntegrationTests",
+            dependencies: [
+                "HayabusaKit",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            path: "Tests/HayabusaIntegrationTests"
         ),
     ]
 )

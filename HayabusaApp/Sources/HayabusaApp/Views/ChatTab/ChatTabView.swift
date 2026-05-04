@@ -88,14 +88,15 @@ struct ChatTabView: View {
         messages.append((role: "user", content: text))
         isLoading = true
 
-        let apiMessages = messages.map { ["role": $0.role, "content": $0.content] }
+        let apiMessages = [["role": "system", "content": Strings.Chat.systemPrompt]]
+            + messages.map { ["role": $0.role, "content": $0.content] }
 
         Task {
             do {
                 let response = try await appState.apiClient.chatCompletion(
                     messages: apiMessages,
                     maxTokens: 1024,
-                    temperature: 0.7
+                    temperature: 0.4
                 )
                 messages.append((role: "assistant", content: response.text))
             } catch {

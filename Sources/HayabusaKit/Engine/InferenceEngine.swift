@@ -1,5 +1,5 @@
 /// Per-node memory status for cluster reporting.
-struct EngineMemoryInfo: Sendable {
+package struct EngineMemoryInfo: Sendable {
     let totalPhysical: UInt64
     let rssBytes: UInt64
     let freeEstimate: UInt64
@@ -7,7 +7,7 @@ struct EngineMemoryInfo: Sendable {
     let pressure: String          // "normal", "low", "critical", "emergency"
 }
 
-protocol InferenceEngine: Sendable {
+package protocol InferenceEngine: Sendable {
     var modelDescription: String { get }
     var slotCount: Int { get }
 
@@ -24,6 +24,6 @@ protocol InferenceEngine: Sendable {
     func memoryInfo() -> EngineMemoryInfo?
 }
 
-extension InferenceEngine {
+package extension InferenceEngine {
     func memoryInfo() -> EngineMemoryInfo? { nil }
 }

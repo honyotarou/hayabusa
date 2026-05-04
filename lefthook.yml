@@ -1,0 +1,8 @@
+# Editor-neutral pre-commit gate (LINE harness と同型の「内ループ」).
+# fast = check-encapsulation + LocalPolicy test + HayabusaApp build
+# One-time: ./scripts/bootstrap-lefthook.sh  (requires: brew install lefthook)
+pre-commit:
+  commands:
+    swift-harness-fast:
+      run: ./scripts/harness.sh fast
+      glob: '*.{swift}'

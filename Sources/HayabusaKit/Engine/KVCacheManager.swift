@@ -1,14 +1,14 @@
 import CLlama
 
-enum SlotPriority: Int, Comparable {
+package enum SlotPriority: Int, Comparable {
     case low = 0
     case high = 1
 
-    static func < (lhs: SlotPriority, rhs: SlotPriority) -> Bool {
+    package static func < (lhs: SlotPriority, rhs: SlotPriority) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 
-    init(string: String?) {
+    package init(string: String?) {
         switch string?.lowercased() {
         case "high": self = .high
         default: self = .low
