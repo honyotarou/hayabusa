@@ -198,7 +198,8 @@ final class WizardViewModel {
                     let configPath = (fullPath as NSString).appendingPathComponent("config.json")
                     if fm.fileExists(atPath: configPath) {
                         let size = directorySize(path: fullPath)
-                        guard size > 50_000_000 else { continue }
+                        // HF hub snapshots use symlinks to blobs — logical size is tiny; accept if weights are present.
+                        guard size > 50_000_000 || directoryHasMLXWeights(atPath: fullPath) else { continue }
                         found.append(LocalModel(
                             id: fullPath,
                             name: item,
@@ -211,6 +212,8 @@ final class WizardViewModel {
             }
         }
 
+        scanHuggingFaceHubCache(into: &found)
+
         // Sort by name
         localModels = found.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
@@ -222,6 +225,48 @@ final class WizardViewModel {
         // If local models found, default to local mode
         if !localModels.isEmpty {
             selectionMode = .local
+        }
+    }
+
+    /// MLX weights from `swift build` / Hayabusa CLI often land under ~/.cache/huggingface/hub/.../snapshots/<id>/.
+    private func scanHuggingFaceHubCache(into found: inout [LocalModel]) {
+        let fm = FileManager.default
+        let hub = fm.homeDirectoryForCurrentUser.appendingPathComponent(".cache/huggingface/hub").path
+        guard let repos = try? fm.contentsOfDirectory(atPath: hub) else { return }
+        var seenPaths = Set(found.map(\.path))
+
+        for repo in repos where repo.hasPrefix("models--") {
+            let snapshotsPath = (hub as NSString).appendingPathComponent("\(repo)/snapshots")
+            guard let snaps = try? fm.contentsOfDirectory(atPath: snapshotsPath) else { continue }
+            for snap in snaps {
+                let fullPath = (snapshotsPath as NSString).appendingPathComponent(snap)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue else { continue }
+                let configPath = (fullPath as NSString).appendingPathComponent("config.json")
+                guard fm.fileExists(atPath: configPath) else { continue }
+                guard seenPaths.insert(fullPath).inserted else { continue }
+
+                guard directoryHasMLXWeights(atPath: fullPath) else { continue }
+                let size = directorySize(path: fullPath)
+                let name = repo
+                    .replacingOccurrences(of: "models--", with: "")
+                    .replacingOccurrences(of: "--", with: "/")
+                found.append(LocalModel(
+                    id: fullPath,
+                    name: name,
+                    path: fullPath,
+                    backend: "mlx",
+                    sizeBytes: size
+                ))
+            }
+        }
+    }
+
+    /// True if the directory lists MLX weight files (handles HF hub symlinks — tiny aggregated `directorySize`).
+    private func directoryHasMLXWeights(atPath path: String) -> Bool {
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: path) else { return false }
+        return items.contains { name in
+            name.hasSuffix(".safetensors") || name.hasSuffix(".safetensors.index.json")
         }
     }
 
