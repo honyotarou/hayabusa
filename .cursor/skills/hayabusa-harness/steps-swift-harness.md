@@ -51,8 +51,10 @@
 
 ## 5. CI/CD
 
+- **ci.yml** / **release.yml**: `runs-on: macos-15` + Xcode **16.3**（`mlx-swift-lm` が Swift **tools 6.1** を要求）。
 - **ci.yml**: PR / `main` / `master` で `harness full`（`swift test` まで含む）。
 - **release.yml**: タグ `v*` の DMG（既存）。
+- ルート `Package.swift` の **mlx-swift-lm** は **`revision` ピン**（`main` 直追いなし。更新はローカルで `harness full` 緑を確認してから revision を上げる）。
 
 ## 6. 今後足せるもの
 

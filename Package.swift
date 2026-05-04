@@ -10,7 +10,9 @@ let package = Package(
     dependencies: [
         .package(path: "LocalPolicy"),
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // Pin revision: upstream no longer tracks Swift 5.10; main uses swift-tools 6.1 (Xcode ≥16.3).
+        // Bump intentionally after `swift package update` + local `harness full`.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "7e2b7107be52ffbfe488f3c7987d3f52c1858b4b"),
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.0.0"),
     ],
