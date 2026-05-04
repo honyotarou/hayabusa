@@ -79,6 +79,46 @@ final class ChatModelsChartSanitizeTests: XCTestCase {
         XCTAssertTrue(out.hasPrefix("S：56"), out)
     }
 
+    func testSanitizedRecoveredChart_synthesizesSubjectFromFallback_notHardcodedMikisa() throws {
+        let raw = "thinking process draft only"
+        let user = "56歳男性、昨日脚立より転落し腰部打撲。右大腿外側痛・右下肢脱力感。"
+        let response = try decodeChatResponse(content: raw)
+        let out = response.chartText(fallbackLastUserMessage: user)
+        XCTAssertFalse(out.contains("S：未記載"), out)
+        XCTAssertTrue(out.contains("脚立") || out.contains("転落"), out)
+        XCTAssertTrue(out.hasPrefix("S："), out)
+    }
+
+    func testSanitized_incompleteSOAP_returnsRecoveredChartWithUserSubject() throws {
+        let raw = """
+        前置きだけでSOAP不足
+
+        S：テストのみ
+        """
+        let user = "50歳女性、階段で転んで手首を痛めた。"
+        let response = try decodeChatResponse(content: raw)
+        let out = response.chartText(fallbackLastUserMessage: user)
+        XCTAssertTrue(out.contains("50歳女性") || out.contains("手首"), out)
+        XCTAssertTrue(out.contains("O："), out)
+    }
+
+    func testSanitized_validJapaneseSOAPWithLatinAbbreviations_notReplacedByTemplate() throws {
+        let raw = """
+        S：45歳男性。腰痛3か月。
+
+        O：SLR要確認。腰椎MRI済。下周波予定。
+
+        A：椎間板ヘルニア疑い。脊柱管狭窄を鑑別。
+
+        P：理学療法継続。NSAIDs。再悪時はMRI再検。
+        """
+        let response = try decodeChatResponse(content: raw)
+        let out = response.chartText(fallbackLastUserMessage: "dummy")
+        XCTAssertTrue(out.contains("S：45歳男性"), out)
+        XCTAssertTrue(out.contains("MRI"), out)
+        XCTAssertFalse(out.contains("右大腿外側痛あり。右下肢脱力感あり"), out)
+    }
+
     private func decodeChatResponse(content: String) throws -> ChatResponse {
         let payload: [String: Any] = [
             "id": "x",

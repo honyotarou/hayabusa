@@ -26,9 +26,16 @@ final class ChartSystemPromptContractTests: XCTestCase {
         XCTAssertTrue(p.contains("【S】【O】【P】"), p)
     }
 
-    func testSystemPrompt_includesLadderCaseStyleExample() {
+    func testSystemPrompt_exampleIsDecoyCaseNotUserLadderParrot() {
         let p = Strings.Chat.systemPrompt
-        XCTAssertTrue(p.contains("56歳男性。昨日、脚立から転落して腰部を打撲"), p)
-        XCTAssertTrue(p.contains("神経学的所見は要評価"), p)
+        XCTAssertTrue(
+            p.contains("72歳女性") || p.contains("記載例（別シナリオ）"),
+            "記載例はユーザーがそのまま送る主訴と同一にしない（丸写し抑制）"
+        )
+        XCTAssertFalse(
+            p.contains("56歳男性。昨日、脚立から転落して腰部を打撲"),
+            "脚立・56歳男性の完全お手本はプロンプトに置かない"
+        )
+        XCTAssertTrue(p.contains("要確認") || p.contains("要評価"), p)
     }
 }

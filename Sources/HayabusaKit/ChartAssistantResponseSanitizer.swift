@@ -343,7 +343,15 @@ package enum ChartAssistantResponseSanitizer {
         let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
         guard letters.count >= 20 else { return false }
         let asciiLetters = letters.filter { $0.value < 128 }
-        return Double(asciiLetters.count) / Double(letters.count) > 0.45
+        let ratio = Double(asciiLetters.count) / Double(letters.count)
+        let cjkCount = text.unicodeScalars.filter { sc in
+            let v = sc.value
+            return (0x4E00 ... 0x9FFF).contains(v)
+                || (0x3040 ... 0x309F).contains(v)
+                || (0x30A0 ... 0x30FF).contains(v)
+        }.count
+        if cjkCount >= 28 { return ratio > 0.58 }
+        return ratio > 0.45
     }
 
     // MARK: - Private parsing

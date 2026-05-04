@@ -178,6 +178,19 @@ final class ChartAssistantResponseSanitizerTests: XCTestCase {
         XCTAssertFalse(out.contains("S：未記載"), out)
     }
 
+    func testLooksLikeEnglishThinking_doesNotRejectJapaneseChartWithLatinTokens() {
+        let chart = """
+        S：45歳男性。腰痛3か月。
+
+        O：SLR要確認。腰椎MRI済。下周波予定。
+
+        A：椎間板ヘルニア疑い。脊柱管狭窄を鑑別。
+
+        P：理学療法継続。NSAIDs。再悪時はMRI再検。
+        """
+        XCTAssertFalse(ChartAssistantResponseSanitizer.looksLikeEnglishThinking(chart))
+    }
+
     func testExtractDemographics() {
         let d = ChartAssistantResponseSanitizer.extractDemographics(from: ladderCase)
         XCTAssertEqual(d.age, "56")

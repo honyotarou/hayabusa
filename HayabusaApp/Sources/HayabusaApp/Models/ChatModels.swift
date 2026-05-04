@@ -91,27 +91,27 @@ private extension String {
         if let soapStart = result.range(of: "【S】") {
             result = String(result[soapStart.lowerBound...])
             if result.containsBlockedThinkingText || result.looksLikeEnglishThinking || result.isEmptyPlaceholderChart {
-                return Self.shortFallbackChart
+                return Self.recoveredShortChart(fallbackLastUserMessage: fallbackLastUserMessage)
             }
             return result.normalizedNewlines.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         if Self.hasCompleteShortSOAP(result) {
             if result.containsBlockedThinkingText || result.looksLikeEnglishThinking || Self.isEmptyShortSOAPPlaceholder(result) {
-                return Self.shortFallbackChart
+                return Self.recoveredShortChart(fallbackLastUserMessage: fallbackLastUserMessage)
             }
             return Self.finalizeCompleteShortSOAP(result, fallback: fallbackLastUserMessage)
         }
 
         if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
-            return Self.shortFallbackChart
+            return Self.recoveredShortChart(fallbackLastUserMessage: fallbackLastUserMessage)
         }
 
         if !result.isEmpty {
-            return Self.shortFallbackChart
+            return Self.recoveredShortChart(fallbackLastUserMessage: fallbackLastUserMessage)
         }
 
-        return Self.shortFallbackChart
+        return Self.recoveredShortChart(fallbackLastUserMessage: fallbackLastUserMessage)
     }
 
     // MARK: - S 補完（HayabusaKit の `shortSOAPFillingRedactedSubjectIfNeeded` と同型）
@@ -354,16 +354,28 @@ private extension String {
         let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
         guard letters.count >= 20 else { return false }
         let asciiLetters = letters.filter { $0.value < 128 }
-        return Double(asciiLetters.count) / Double(letters.count) > 0.45
+        let ratio = Double(asciiLetters.count) / Double(letters.count)
+        let cjkCount = text.unicodeScalars.filter { sc in
+            let v = sc.value
+            return (0x4E00 ... 0x9FFF).contains(v)
+                || (0x3040 ... 0x309F).contains(v)
+                || (0x30A0 ... 0x30FF).contains(v)
+        }.count
+        if cjkCount >= 28 { return ratio > 0.58 }
+        return ratio > 0.45
     }
 
     var looksLikeEnglishThinking: Bool {
         Self.looksLikeEnglishThinkingStatic(self)
     }
 
-    static var shortFallbackChart: String {
-        """
-        S：未記載
+    /// Kit の `recoveredShortChart` と同型。ハードコードした `S：未記載` は避け、`fallback` から主観を合成する。
+    static func recoveredShortChart(fallbackLastUserMessage: String?) -> String {
+        let narrative = narrativeForRecovery(prefix: nil, fallback: fallbackLastUserMessage)
+        let hint = demographicsHint(prefix: nil, fallback: fallbackLastUserMessage)
+        let sLine = syntheticSubjectLine(narrative: narrative, demographicsFrom: hint)
+        return """
+        S：\(sLine)
 
         O：\(AppChartFallback.recoveryObjectiveLine)
 
