@@ -23,13 +23,35 @@ final class MLXEngine: InferenceEngine, @unchecked Sendable {
         let configuration = ModelConfiguration(id: modelId)
 
         print("[MLX] Downloading/loading model: \(modelId)")
+        print("[MLX] First download from Hugging Face can take several minutes; progress may stay at 0% until metadata resolves.")
+
+        final class ProgressGate: @unchecked Sendable {
+            var lastPrinted = -1
+            let lock = NSLock()
+            func emit(_ progress: Progress) {
+                let pct = min(100, Int((progress.fractionCompleted * 100.0).rounded(.down)))
+                lock.lock()
+                defer { lock.unlock() }
+                guard pct != lastPrinted else { return }
+                lastPrinted = pct
+                let extra: String
+                if progress.totalUnitCount > 0 {
+                    extra = " (\(progress.completedUnitCount)/\(progress.totalUnitCount) units)"
+                } else {
+                    extra = ""
+                }
+                print("[MLX] Progress: \(pct)%\(extra)")
+            }
+        }
+        let progressGate = ProgressGate()
+
         self.modelContainer = try await LLMModelFactory.shared.loadContainer(
             from: #hubDownloader(),
             using: #huggingFaceTokenizerLoader(),
             configuration: configuration,
             progressHandler: { progress in
                 if progress.fractionCompleted < 1.0 {
-                    print("[MLX] Progress: \(Int(progress.fractionCompleted * 100))%")
+                    progressGate.emit(progress)
                 }
             }
         )

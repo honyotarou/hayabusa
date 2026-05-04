@@ -73,7 +73,7 @@ Hayabusa is a high-performance LLM inference server built from scratch in Swift,
 
 ### Prerequisites
 
-- macOS 14+ (Sonnet or later)
+- macOS 14+ (Sonoma or later)
 - Apple Silicon (M1/M2/M3/M4)
 - Xcode 15+ / Swift 5.10+
 
@@ -103,9 +103,11 @@ huggingface-cli download unsloth/Qwen3.5-9B-GGUF Qwen3.5-9B-Q4_K_M.gguf \
 ```bash
 # Build
 swift build
+# optional: swift build -c release
 
 # Run with llama.cpp backend
 .build/debug/Hayabusa models/Qwen3.5-9B-Q4_K_M.gguf --backend llama
+# optional: .build/release/Hayabusa …
 
 # Run with MLX backend
 .build/debug/Hayabusa mlx-community/Qwen3.5-9B-MLX-4bit --backend mlx
@@ -114,6 +116,15 @@ swift build
 HAYABUSA_PORT=8081 .build/debug/Hayabusa models/Qwen3.5-9B-Q4_K_M.gguf \
   --backend llama --slots 8 --ctx-per-slot 4096
 ```
+
+**MLX backend (`--backend mlx`) and `swift build`:** The MLX dependency (mlx-swift) does not compile Metal shaders when you only run `swift build` from the terminal. The binary will start and may download weights, then fail with:
+
+`Failed to load the default metallib` / `library not found`
+
+Use one of these approaches:
+
+1. **Xcode (simplest):** Open this repo’s `Package.swift` in Xcode, select the **Hayabusa** scheme, build (⌘B). That produces the `default.metallib` (often under `~/Library/Developer/Xcode/DerivedData/…/mlx-swift_Cmlx.bundle`, not always under the package `.build` tree). Then run `scripts/copy_mlx_metallib.sh release` (or `debug`) to install `mlx.metallib` next to the `Hayabusa` binary, **or** copy `default.metallib` there manually as `mlx.metallib`. MLX checks the executable directory first.
+2. **Command line:** Follow [mlx-swift § xcodebuild](https://github.com/ml-explore/mlx-swift#xcodebuild) to build the package with Metal, then point `scripts/copy_mlx_metallib.sh` at the checkout or set `MLX_METAL_LIB` to a `default.metallib` path (see script header).
 
 ### Send a Request
 

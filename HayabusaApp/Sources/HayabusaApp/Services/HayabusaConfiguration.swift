@@ -78,6 +78,8 @@ struct HayabusaConfiguration {
         let searchDirs = [
             "\(home)/Desktop/hayabusa",
             "\(home)/Desktop/Lang/hayabusa",
+            "\(home)/Documents/GitHub/hayabusa",
+            "\(home)/Documents/hayabusa",
             "\(home)/hayabusa",
             "\(home)/Projects/hayabusa",
             "\(home)/Developer/hayabusa",
