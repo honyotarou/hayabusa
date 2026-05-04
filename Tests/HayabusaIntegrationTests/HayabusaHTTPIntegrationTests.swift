@@ -50,6 +50,72 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         }
     }
 
+    func testPOSTChatCompletionsFiltersEnglishThinkingAfterSOAPMarker() async throws {
+        let server = HayabusaServer(
+            engine: MockInferenceEngine(fixedReply: """
+            【S】`.
+            *   No content before `【S】`.
+            *   No thinking process, analysis, drafts, self-correction, or English explanations in the output.
+            2.  **Analyze the Input:**
+            *   **Patient:** 56-year-old male.
+            """),
+            port: 0,
+            bindAddress: "127.0.0.1"
+        )
+        let text = try await postChat(server: server, bodyJson: """
+        {"messages":[{"role":"user","content":"56歳男性、脚立から落ちて腰痛と右足痛"}],"max_tokens":16}
+        """)
+
+        XCTAssertTrue(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertFalse(text.contains("No content before"), text)
+        XCTAssertFalse(text.contains("Analyze the Input"), text)
+        XCTAssertFalse(text.contains("56-year-old male"), text)
+    }
+
+    func testPOSTChatCompletionsFiltersEnglishThinkingWithoutSOAPMarker() async throws {
+        let server = HayabusaServer(
+            engine: MockInferenceEngine(fixedReply: """
+            1. **Analyze the Input:**
+            * **Patient:** 56-year-old male.
+            * **Chief Complaint:** waist and right leg pain.
+            2. **Drafting the Content:**
+            """),
+            port: 0,
+            bindAddress: "127.0.0.1"
+        )
+        let text = try await postChat(server: server, bodyJson: """
+        {"messages":[{"role":"user","content":"56歳男性、脚立から落ちて腰痛と右足痛"}],"max_tokens":16}
+        """)
+
+        XCTAssertTrue(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
+        XCTAssertFalse(text.contains("Analyze the Input"), text)
+        XCTAssertFalse(text.contains("Drafting the Content"), text)
+        XCTAssertFalse(text.contains("Chief Complaint"), text)
+    }
+
+    func testPOSTChatCompletionsKeepsJapaneseSOAPFromMarker() async throws {
+        let server = HayabusaServer(
+            engine: MockInferenceEngine(fixedReply: """
+            余計な前置き
+            【S】
+            56歳男性。昨日脚立から転落し腰部を打撲。
+
+            【O】
+            腰痛、右下肢痛あり。
+            """),
+            port: 0,
+            bindAddress: "127.0.0.1"
+        )
+        let text = try await postChat(server: server, bodyJson: """
+        {"messages":[{"role":"user","content":"56歳男性、脚立から落ちて腰痛と右足痛"}],"max_tokens":16}
+        """)
+
+        XCTAssertFalse(text.contains("余計な前置き"), text)
+        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("56歳男性"), text)
+        XCTAssertTrue(text.contains("【O】"), text)
+    }
+
     func testPOSTChatCompletionsValidationRejectsBadTemperature() async throws {
         let server = HayabusaServer(
             engine: MockInferenceEngine(),
@@ -73,6 +139,27 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
                 body: postBody
             ) { response in
                 XCTAssertEqual(response.status, .badRequest)
+            }
+        }
+    }
+
+    private func postChat(server: HayabusaServer, bodyJson: String) async throws -> String {
+        let postBody: ByteBuffer = {
+            var b = ByteBufferAllocator().buffer(capacity: bodyJson.utf8.count)
+            b.writeString(bodyJson)
+            return b
+        }()
+
+        let app = server.makeApplication()
+        return try await app.test(.live) { client in
+            try await client.execute(
+                uri: "/v1/chat/completions",
+                method: .post,
+                headers: [.contentType: "application/json"],
+                body: postBody
+            ) { response in
+                XCTAssertEqual(response.status, .ok, "body: \(String(buffer: response.body))")
+                return String(buffer: response.body)
             }
         }
     }

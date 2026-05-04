@@ -427,13 +427,13 @@ package final class SpeculativeDecoder: InferenceEngine, @unchecked Sendable {
 
     private func formatChatML(messages: [ChatMessage]) -> String {
         if let formatted = tryApplyTemplate(messages: messages) {
-            return formatted + "<think>\n</think>\n【S】"
+            return formatted + "<think>\n</think>\n"
         }
         var prompt = ""
         for msg in messages {
             prompt += "<|im_start|>\(msg.role)\n\(msg.content)<|im_end|>\n"
         }
-        prompt += "<|im_start|>assistant\n<think>\n</think>\n【S】"
+        prompt += "<|im_start|>assistant\n<think>\n</think>\n"
         return prompt
     }
 

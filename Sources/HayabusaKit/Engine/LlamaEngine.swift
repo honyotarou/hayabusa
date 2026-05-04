@@ -411,7 +411,7 @@ package final class LlamaEngine: InferenceEngine, @unchecked Sendable {
             // Only add think tokens for models that support thinking mode (e.g. Qwen3.5)
             // Gemma 4 does not use <think> tags — appending them wastes tokens and confuses the model
             if !isGemmaModel {
-                return formatted + "<think>\n</think>\n【S】"
+                return formatted + "<think>\n</think>\n"
             }
             return formatted
         }
@@ -433,7 +433,7 @@ package final class LlamaEngine: InferenceEngine, @unchecked Sendable {
         for msg in messages {
             prompt += "<|im_start|>\(msg.role)\n\(msg.content)<|im_end|>\n"
         }
-        prompt += "<|im_start|>assistant\n<think>\n</think>\n【S】"
+        prompt += "<|im_start|>assistant\n<think>\n</think>\n"
         return prompt
     }
 
