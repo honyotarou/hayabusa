@@ -12,6 +12,17 @@ package enum ChartAssistantResponseSanitizer {
     package static let recoveryObjectiveLine =
         "右大腿外側痛あり。右下肢脱力感あり。腰椎・骨盤XP予定。神経学的所見要評価。"
 
+    /// 整形再試行などで末尾が「直前の入力について…」のユーザー行になったとき、ひとつ前の臨床入力を返す。
+    package static func clinicalFallbackLastUserMessage(messages: [ChatMessage]) -> String? {
+        let users = messages.filter { $0.role == "user" }.map(\.content)
+        guard let last = users.last else { return nil }
+        let trimmed = last.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("直前の入力について"), users.count >= 2 {
+            return users[users.count - 2]
+        }
+        return last
+    }
+
     package static func sanitize(raw: String, fallbackLastUserMessage: String?) -> String {
         var result = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -32,7 +43,7 @@ package enum ChartAssistantResponseSanitizer {
            !isEmptyShortSOAPPlaceholder(result),
            !containsBlockedThinkingText(result),
            !looksLikeEnglishThinking(result) {
-            return stripTrailingChartJSONIfAny(result).trimmingCharacters(in: .whitespacesAndNewlines)
+            return finalizeCompleteShortSOAP(result, fallback: fallbackLastUserMessage)
         }
 
         if let sBracket = result.range(of: "【S】") {
@@ -53,7 +64,7 @@ package enum ChartAssistantResponseSanitizer {
                 return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
             }
             if hasCompleteShortSOAP(fromShort) {
-                return stripTrailingChartJSONIfAny(fromShort).trimmingCharacters(in: .whitespacesAndNewlines)
+                return finalizeCompleteShortSOAP(fromShort, fallback: fallbackLastUserMessage)
             }
             return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
         }
@@ -70,6 +81,47 @@ package enum ChartAssistantResponseSanitizer {
         }
 
         return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+    }
+
+    private static func finalizeCompleteShortSOAP(_ text: String, fallback: String?) -> String {
+        let trimmed = stripTrailingChartJSONIfAny(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        return shortSOAPFillingRedactedSubjectIfNeeded(trimmed, fallback: fallback)
+    }
+
+    /// `S：` が空／未記載だけで O/A/P が埋まっているとき、直前のユーザー発話から S を補完する。
+    private static func shortSOAPFillingRedactedSubjectIfNeeded(_ text: String, fallback: String?) -> String {
+        guard let fallback else { return text }
+        let n0 = text.normalizedNewlines.trimmingCharacters(in: .whitespacesAndNewlines)
+        let n = unifyShortSOAPHeaderLetters(n0)
+        guard hasCompleteShortSOAP(n) else { return text }
+        guard let sBody = extractSectionBody(n, start: "S：", endPrefixes: ["O："]),
+              let o = extractSectionBody(n, start: "O：", endPrefixes: ["A："]),
+              let a = extractSectionBody(n, start: "A：", endPrefixes: ["P："]),
+              let p = extractSectionBody(n, start: "P：", endPrefixes: [])
+        else { return text }
+        let sTrim = sBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard sTrim.isEmpty || sTrim == "未記載" else { return text }
+        let narrative = narrativeForRecovery(prefix: nil, fallback: fallback)
+        let hint = demographicsHint(prefix: nil, fallback: fallback)
+        let newS = syntheticSubjectLine(narrative: narrative, demographicsFrom: hint)
+        guard newS != "未記載" else { return text }
+        return """
+        S：\(newS)
+
+        O：\(o)
+
+        A：\(a)
+
+        P：\(p)
+        """
+    }
+
+    private static func unifyShortSOAPHeaderLetters(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "Ｓ：", with: "S：")
+            .replacingOccurrences(of: "Ｏ：", with: "O：")
+            .replacingOccurrences(of: "Ａ：", with: "A：")
+            .replacingOccurrences(of: "Ｐ：", with: "P：")
     }
 
     // MARK: - Short SOAP (S： O： A： P：)
@@ -328,7 +380,7 @@ package enum ChartAssistantResponseSanitizer {
         var end = rest.endIndex
         for p in endPrefixes {
             if let r = rest.range(of: p) {
-                end = min(end, r.lowerBound)
+                end = Swift.min(end, r.lowerBound)
             }
         }
         return String(rest[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)

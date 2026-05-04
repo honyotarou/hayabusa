@@ -150,6 +150,34 @@ final class ChartAssistantResponseSanitizerTests: XCTestCase {
         XCTAssertFalse(out.contains("\"age\""), out)
     }
 
+    func testClinicalFallbackLastUserMessage_skipsRetryStylePrompt() {
+        let msgs: [ChatMessage] = [
+            .init(role: "system", content: "sys"),
+            .init(role: "user", content: "56歳男性、脚立より転落し腰部打撲。右大腿痛。"),
+            .init(role: "assistant", content: "…"),
+            .init(role: "user", content: "直前の入力について、英語の思考過程を一切出さず、必ず「S：」から"),
+        ]
+        let fb = ChartAssistantResponseSanitizer.clinicalFallbackLastUserMessage(messages: msgs)
+        XCTAssertEqual(fb, "56歳男性、脚立より転落し腰部打撲。右大腿痛。")
+    }
+
+    func testSanitize_fillsSubjectWhenModelLeftSMikisa() {
+        let raw = """
+        S：未記載
+
+        O：\(ChartAssistantResponseSanitizer.recoveryObjectiveLine)
+
+        A：\(ChartAssistantResponseSanitizer.recoveryAssessmentLine)
+
+        P：\(ChartAssistantResponseSanitizer.recoveryPlanLine)
+        """
+        let user = "56歳男性、昨日脚立より転落し腰部打撲。右大腿外側痛・右下肢脱力感。"
+        let out = ChartAssistantResponseSanitizer.sanitize(raw: raw, fallbackLastUserMessage: user)
+        XCTAssertTrue(out.hasPrefix("S：56"), out)
+        XCTAssertTrue(out.contains("脚立"), out)
+        XCTAssertFalse(out.contains("S：未記載"), out)
+    }
+
     func testExtractDemographics() {
         let d = ChartAssistantResponseSanitizer.extractDemographics(from: ladderCase)
         XCTAssertEqual(d.age, "56")

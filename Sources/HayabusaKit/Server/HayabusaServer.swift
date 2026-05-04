@@ -82,7 +82,9 @@ package struct HayabusaServer {
                 content: result.text,
                 promptTokens: result.promptTokens,
                 completionTokens: result.completionTokens,
-                fallbackSubject: chatRequest.messages.last(where: { $0.role == "user" })?.content
+                fallbackSubject: ChartAssistantResponseSanitizer.clinicalFallbackLastUserMessage(
+                    messages: chatRequest.messages
+                )
             )
 
             let jsonData = try JSONEncoder().encode(response)
