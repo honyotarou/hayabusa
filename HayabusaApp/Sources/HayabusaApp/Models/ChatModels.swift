@@ -48,6 +48,24 @@ struct ChatResponse: Decodable {
     }
 
     var text: String {
-        choices.first?.message.content ?? ""
+        (choices.first?.message.content ?? "").sanitizedChartResponse
+    }
+}
+
+private extension String {
+    var sanitizedChartResponse: String {
+        var result = self.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        while let start = result.range(of: "<think>"),
+              let end = result.range(of: "</think>", range: start.upperBound..<result.endIndex) {
+            result.removeSubrange(start.lowerBound..<end.upperBound)
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if let soapStart = result.range(of: "【S】") {
+            result = String(result[soapStart.lowerBound...])
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
