@@ -62,9 +62,11 @@ private extension String {
             result = result.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        result = result.normalizedChartMarkers
+
         if let soapStart = result.range(of: "【S】") {
             result = String(result[soapStart.lowerBound...])
-            if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
+            if result.containsBlockedThinkingText || result.looksLikeEnglishThinking || result.isEmptyPlaceholderChart {
                 return Self.fallbackChartResponse
             }
         } else if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
@@ -96,6 +98,29 @@ private extension String {
             "Specific rules"
         ]
         return markers.contains { self.localizedCaseInsensitiveContains($0) }
+    }
+
+    var normalizedChartMarkers: String {
+        var result = self
+        let replacements = [
+            "[S]": "【S】",
+            "[Ｏ]": "【O】",
+            "[O]": "【O】",
+            "[Ｐ]": "【P】",
+            "[P]": "【P】"
+        ]
+        for (source, target) in replacements {
+            result = result.replacingOccurrences(of: source, with: target)
+        }
+        return result
+    }
+
+    var isEmptyPlaceholderChart: Bool {
+        let compact = self
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        return compact.contains("【S】\n未記載")
+            && compact.contains("【O】\n未記載")
     }
 
     var looksLikeEnglishThinking: Bool {
