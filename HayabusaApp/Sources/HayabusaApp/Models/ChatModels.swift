@@ -64,28 +64,11 @@ private extension String {
 
         if let soapStart = result.range(of: "【S】") {
             result = String(result[soapStart.lowerBound...])
-        } else if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
-            return """
-            【S】
-            出力形式が崩れたため、再生成が必要です。
-
-            【O】
-            未記載
-
-            【P】
-            内服：希望なし
-            外用：希望なし
-            リハビリ介入：希望なし
-            来週再診：希望なし
-
-            {
-              "age": "",
-              "gender": "",
-              "diagnoses": ["", "", "", "", "", ""],
-              "rehab": false,
-              "remarks": "なし"
+            if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
+                return Self.fallbackChartResponse
             }
-            """
+        } else if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
+            return Self.fallbackChartResponse
         } else if !result.isEmpty {
             result = "【S】\n" + result
         }
@@ -120,5 +103,29 @@ private extension String {
         guard letters.count >= 20 else { return false }
         let asciiLetters = letters.filter { $0.value < 128 }
         return Double(asciiLetters.count) / Double(letters.count) > 0.45
+    }
+
+    static var fallbackChartResponse: String {
+        """
+        【S】
+        出力形式が崩れたため、再生成が必要です。
+
+        【O】
+        未記載
+
+        【P】
+        内服：希望なし
+        外用：希望なし
+        リハビリ介入：希望なし
+        来週再診：希望なし
+
+        {
+          "age": "",
+          "gender": "",
+          "diagnoses": ["", "", "", "", "", ""],
+          "rehab": false,
+          "remarks": "なし"
+        }
+        """
     }
 }
