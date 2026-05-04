@@ -1,3 +1,4 @@
+import Foundation
 import HTTPTypes
 import HayabusaKit
 import HummingbirdTesting
@@ -123,6 +124,45 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         XCTAssertTrue(text.contains("【O】"), text)
     }
 
+    /// Matches common MLX output: blank lines after 【S】/【O】 so legacy `【S】\n未記載` substring check failed.
+    func testPOSTChatCompletionsRecoversPlaceholderSOAPWithBlankLines() async throws {
+        let server = HayabusaServer(
+            engine: MockInferenceEngine(fixedReply: """
+            【S】
+
+            未記載
+
+            【O】
+
+            未記載
+
+            【P】
+            内服：希望なし
+            外用：希望なし
+            リハビリ介入：希望なし
+            来週再診：希望なし
+
+            {
+              "age": "",
+              "gender": "",
+              "diagnoses": ["", "", "", "", "", ""],
+              "rehab": false,
+              "remarks": "なし"
+            }
+            """),
+            port: 0,
+            bindAddress: "127.0.0.1"
+        )
+        let text = try await postChat(server: server, bodyJson: """
+        {"messages":[{"role":"user","content":"56歳男性昨日、脚立から落ちて腰を打ったために、今日になって腰と右足が痛くなってきました。右太ももの外側が痛み、足に力が入りません。"}],"max_tokens":16}
+        """)
+
+        let content = try assistantMessageContent(chatCompletionJSON: text)
+        XCTAssertTrue(content.contains("56歳男性昨日、脚立から落ちて腰を打った"), content)
+        XCTAssertTrue(content.contains("\"age\": \"56\""), content)
+        XCTAssertTrue(content.contains("\"gender\": \"男性\""), content)
+    }
+
     func testPOSTChatCompletionsRecoversEmptyAsciiBracketChart() async throws {
         let server = HayabusaServer(
             engine: MockInferenceEngine(fixedReply: """
@@ -186,6 +226,14 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
                 XCTAssertEqual(response.status, .badRequest)
             }
         }
+    }
+
+    private func assistantMessageContent(chatCompletionJSON text: String) throws -> String {
+        let data = try XCTUnwrap(text.data(using: .utf8))
+        let obj = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let choices = try XCTUnwrap(obj["choices"] as? [[String: Any]])
+        let message = try XCTUnwrap(choices.first?["message"] as? [String: Any])
+        return try XCTUnwrap(message["content"] as? String)
     }
 
     private func postChat(server: HayabusaServer, bodyJson: String) async throws -> String {

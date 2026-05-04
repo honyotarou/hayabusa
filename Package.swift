@@ -77,5 +77,10 @@ let package = Package(
             ],
             path: "Tests/HayabusaIntegrationTests"
         ),
+        .testTarget(
+            name: "HayabusaKitTests",
+            dependencies: ["HayabusaKit"],
+            path: "Tests/HayabusaKitTests"
+        ),
     ]
 )
