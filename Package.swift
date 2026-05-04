@@ -22,6 +22,9 @@ let package = Package(
             path: "Sources/CLlama",
             linkerSettings: [
                 .unsafeFlags([
+                    // Newer llama.cpp (BUILD_SHARED_LIBS=ON) often installs libllama*.dylib under build/bin;
+                    // older / static layouts keep archives under build/src.
+                    "-L\(llamaBuildDir)/bin",
                     "-L\(llamaBuildDir)/src",
                     "-L\(llamaBuildDir)/ggml/src",
                     "-L\(llamaBuildDir)/ggml/src/ggml-metal",

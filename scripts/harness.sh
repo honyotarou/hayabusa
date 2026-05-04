@@ -16,6 +16,13 @@ cpu_jobs() {
   fi
 }
 
+# llama.cpp CMake output layout varies: shared libs often in build/bin, static in build/src.
+llama_lib_present() {
+  local build_dir="$1"
+  [[ -f "$build_dir/bin/libllama.dylib" || -f "$build_dir/bin/libllama.a"
+    || -f "$build_dir/src/libllama.dylib" || -f "$build_dir/src/libllama.a" ]]
+}
+
 run_check_encapsulation() {
   echo "== check-encapsulation"
   "$ROOT/scripts/check-encapsulation.sh"
@@ -39,8 +46,6 @@ run_hayabusa_app_build() {
 ensure_llama() {
   local llama_root="$ROOT/vendor/llama.cpp"
   local build_dir="$llama_root/build"
-  local lib_dylib="$build_dir/src/libllama.dylib"
-  local lib_a="$build_dir/src/libllama.a"
 
   if [[ ! -d "$llama_root/.git" ]] && [[ ! -f "$llama_root/CMakeLists.txt" ]]; then
     echo "== llama.cpp: clone"
@@ -48,8 +53,8 @@ ensure_llama() {
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "$llama_root"
   fi
 
-  if [[ -f "$lib_dylib" || -f "$lib_a" ]]; then
-    echo "== llama.cpp: already built ($lib_dylib|$lib_a)"
+  if llama_lib_present "$build_dir"; then
+    echo "== llama.cpp: already built (libllama under $build_dir/bin or $build_dir/src)"
     return 0
   fi
 
@@ -63,8 +68,8 @@ ensure_llama() {
     -DGGML_METAL_EMBED_LIBRARY=ON
   cmake --build "$build_dir" --config Release -j"$(cpu_jobs)"
 
-  if [[ ! -f "$lib_dylib" && ! -f "$lib_a" ]]; then
-    echo "error: expected libllama under $build_dir/src (*.dylib or *.a)" >&2
+  if ! llama_lib_present "$build_dir"; then
+    echo "error: expected libllama under $build_dir/bin or $build_dir/src (*.dylib or *.a)" >&2
     find "$build_dir" -name 'libllama*' 2>/dev/null | head -20 >&2 || true
     exit 1
   fi

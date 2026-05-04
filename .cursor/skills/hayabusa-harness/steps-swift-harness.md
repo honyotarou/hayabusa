@@ -35,7 +35,7 @@
 | **check-encapsulation** | 禁則 import（Server に MLX 等） | 依存を `HayabusaKit/Engine` 側に閉じる、HTTP 層は `InferenceEngine` のみ |
 | **LocalPolicy swift test** | ポリシー変更・回帰 | 失敗テストと `HayabusaLocalPolicy` の期待を揃える |
 | **HayabusaApp swift build** | GUI コンパイルエラー | `HayabusaApp/Sources` の型・import を修正 |
-| **cmake / llama** | clone 失敗・キャッシュ破損 | `vendor/llama.cpp/build` を消して再実行 |
+| **cmake / llama** | clone 失敗・キャッシュ破損・レイアウト差 | 共有ビルドでは `build/bin/libllama*.dylib`、`build/src` に `.a` がある場合あり。`Package.swift` の `-L` と `harness.sh` の検証は両方を想定。困ったら `vendor/llama.cpp/build` を消して再実行 |
 | **ルート swift build** | CLlama リンク・SPM | `libllama.dylib` の有無を確認 |
 | **ルート swift test** | ルート競合・HTTP 契約破壊 | `HayabusaHTTPIntegrationTests` と `HayabusaServer` のパス・検証を更新 |
 
