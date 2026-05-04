@@ -67,7 +67,7 @@ private enum AppChartFallback {
         "腰椎XP、骨盤XP。神経脱落所見あればMRI/CTまたは高次医療機関紹介検討。鎮痛薬・外用薬処方、安静指導。筋力低下進行、膀胱直腸障害、会陰部感覚障害あれば救急受診指示。"
 
     static let recoveryObjectiveLine =
-        "右大腿外側痛あり。右下肢脱力感あり。腰椎・骨盤XP予定。神経学的所見要評価。"
+        "右大腿外側痛あり。右下肢脱力感あり。腰椎・骨盤XP予定。神経学的所見は要評価。"
 }
 
 private extension String {
