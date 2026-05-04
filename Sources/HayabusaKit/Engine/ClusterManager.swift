@@ -344,9 +344,7 @@ package final class ClusterManager: @unchecked Sendable {
     private func handlePeerRemoved(_ result: NWBrowser.Result) {
         guard case .service(let name, _, _, _) = result.endpoint else { return }
         lock.lock()
-        // Remove nodes that might correspond to this service
-        let toRemove = nodes.filter { !$0.value.isLocal }
-        // We don't have exact matching info, so just log for now
+        // TODO: map removed Bonjour service to node ids and prune `nodes`
         lock.unlock()
         print("[Cluster] Service removed: \(name)")
     }

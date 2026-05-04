@@ -39,7 +39,8 @@ run_hayabusa_app_build() {
 ensure_llama() {
   local llama_root="$ROOT/vendor/llama.cpp"
   local build_dir="$llama_root/build"
-  local lib="$build_dir/src/libllama.dylib"
+  local lib_dylib="$build_dir/src/libllama.dylib"
+  local lib_a="$build_dir/src/libllama.a"
 
   if [[ ! -d "$llama_root/.git" ]] && [[ ! -f "$llama_root/CMakeLists.txt" ]]; then
     echo "== llama.cpp: clone"
@@ -47,8 +48,8 @@ ensure_llama() {
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "$llama_root"
   fi
 
-  if [[ -f "$lib" ]]; then
-    echo "== llama.cpp: already built ($lib)"
+  if [[ -f "$lib_dylib" || -f "$lib_a" ]]; then
+    echo "== llama.cpp: already built ($lib_dylib|$lib_a)"
     return 0
   fi
 
@@ -61,6 +62,12 @@ ensure_llama() {
     -DBUILD_SHARED_LIBS=ON \
     -DGGML_METAL_EMBED_LIBRARY=ON
   cmake --build "$build_dir" --config Release -j"$(cpu_jobs)"
+
+  if [[ ! -f "$lib_dylib" && ! -f "$lib_a" ]]; then
+    echo "error: expected libllama under $build_dir/src (*.dylib or *.a)" >&2
+    find "$build_dir" -name 'libllama*' 2>/dev/null | head -20 >&2 || true
+    exit 1
+  fi
 }
 
 run_hayabusa_server_build() {

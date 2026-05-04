@@ -43,7 +43,12 @@ let package = Package(
         ),
         .executableTarget(
             name: "Hayabusa",
-            dependencies: ["HayabusaKit"],
+            dependencies: [
+                "HayabusaKit",
+                // Composition root must link CLlama: SPM does not always propagate linkerSettings
+                // from nested targets to the top-level executable (CI: ld: library 'llama' not found).
+                "CLlama",
+            ],
             path: "Sources/HayabusaCLI"
         ),
         .target(
