@@ -93,11 +93,22 @@ struct ChatTabView: View {
 
         Task {
             do {
-                let response = try await appState.apiClient.chatCompletion(
+                var response = try await appState.apiClient.chatCompletion(
                     messages: apiMessages,
                     maxTokens: 1024,
-                    temperature: 0.4
+                    temperature: 0.1
                 )
+                if response.text.contains("出力形式が崩れたため、再生成が必要です。") {
+                    let retryMessages = apiMessages + [[
+                        "role": "user",
+                        "content": "直前の入力について、英語の思考過程・分析・チェックリストを一切出さず、必ず【S】から始めて日本語のみでカルテ形式を出力してください。"
+                    ]]
+                    response = try await appState.apiClient.chatCompletion(
+                        messages: retryMessages,
+                        maxTokens: 1024,
+                        temperature: 0.0
+                    )
+                }
                 messages.append((role: "assistant", content: response.text))
             } catch {
                 errorText = error.localizedDescription
