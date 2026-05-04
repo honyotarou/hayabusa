@@ -1,4 +1,4 @@
-enum HayabusaError: Error, CustomStringConvertible {
+package enum HayabusaError: Error, CustomStringConvertible {
     case modelLoadFailed(String)
     case vocabLoadFailed
     case contextCreationFailed
@@ -10,7 +10,7 @@ enum HayabusaError: Error, CustomStringConvertible {
     case contextExceeded
     case remoteNodeFailed
 
-    var description: String {
+    package var description: String {
         switch self {
         case .modelLoadFailed(let path): "Failed to load model: \(path)"
         case .vocabLoadFailed: "Failed to get vocabulary"

@@ -11,7 +11,7 @@ import MLXLMCommon
 /// Recommended threshold for Qwen3.5-4B: 0.093 (skips 6/32 layers, ~1.18x speedup).
 /// Note: Weight zeroing ensures correct residual output but does not skip computation.
 /// True layer skipping (bypassing forward pass) requires model-specific modifications.
-struct LayerSkipConfig: Sendable {
+package struct LayerSkipConfig: Sendable {
     let skipThreshold: Double
     let taskProfile: String
     let skipLayerIndices: Set<Int>
@@ -23,7 +23,7 @@ struct LayerSkipConfig: Sendable {
     ///   - threshold: Skip layers with importance <= this value (0.0–1.0)
     ///   - task: Task profile name (e.g., "soap")
     ///   - importancePath: Path to layer_importance.json (optional, searches CWD and scripts/)
-    init(threshold: Double, task: String = "soap", importancePath: String? = nil) throws {
+    package init(threshold: Double, task: String = "soap", importancePath: String? = nil) throws {
         self.skipThreshold = threshold
         self.taskProfile = task
 
@@ -144,7 +144,7 @@ struct LayerSkipConfig: Sendable {
     // MARK: - Stats
 
     /// JSON-compatible summary for /v1/stats endpoint.
-    var statsJSON: String {
+    package var statsJSON: String {
         let indices = skipLayerIndices.sorted().map { "\($0)" }.joined(separator: ",")
         return """
         {"enabled":true,\

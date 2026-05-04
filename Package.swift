@@ -41,6 +41,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "Hayabusa",
+            dependencies: ["HayabusaKit"],
+            path: "Sources/HayabusaCLI"
+        ),
+        .target(
+            name: "HayabusaKit",
             dependencies: [
                 .product(name: "HayabusaLocalPolicy", package: "LocalPolicy"),
                 .product(name: "Hummingbird", package: "hummingbird"),
@@ -51,7 +56,16 @@ let package = Package(
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 "CLlama",
             ],
-            path: "Sources/Hayabusa"
+            path: "Sources/HayabusaKit",
+            exclude: ["Resources/genome-viewer.html"]
+        ),
+        .testTarget(
+            name: "HayabusaIntegrationTests",
+            dependencies: [
+                "HayabusaKit",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            path: "Tests/HayabusaIntegrationTests"
         ),
     ]
 )

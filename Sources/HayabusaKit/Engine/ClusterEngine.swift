@@ -2,19 +2,19 @@ import Foundation
 
 /// Wraps a local `InferenceEngine` and distributes requests across cluster nodes
 /// using Uzu bandwidth-first routing. Falls back to the local engine if a remote node fails.
-final class ClusterEngine: InferenceEngine, @unchecked Sendable {
+package final class ClusterEngine: InferenceEngine, @unchecked Sendable {
     private let localEngine: any InferenceEngine
     private let clusterManager: ClusterManager
 
-    var modelDescription: String { localEngine.modelDescription }
-    var slotCount: Int { localEngine.slotCount }
+    package var modelDescription: String { localEngine.modelDescription }
+    package var slotCount: Int { localEngine.slotCount }
 
-    init(localEngine: any InferenceEngine, clusterManager: ClusterManager) {
+    package init(localEngine: any InferenceEngine, clusterManager: ClusterManager) {
         self.localEngine = localEngine
         self.clusterManager = clusterManager
     }
 
-    func generate(
+    package func generate(
         messages: [ChatMessage],
         maxTokens: Int,
         temperature: Float,
@@ -101,11 +101,11 @@ final class ClusterEngine: InferenceEngine, @unchecked Sendable {
         }
     }
 
-    func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
+    package func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
         localEngine.slotSummary()
     }
 
-    func memoryInfo() -> EngineMemoryInfo? {
+    package func memoryInfo() -> EngineMemoryInfo? {
         localEngine.memoryInfo()
     }
 

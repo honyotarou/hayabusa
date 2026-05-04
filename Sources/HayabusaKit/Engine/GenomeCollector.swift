@@ -5,11 +5,11 @@ import MLXLMCommon
 
 // MARK: - Configuration
 
-struct GenomeConfig: Sendable {
+package struct GenomeConfig: Sendable {
     let outputPath: String
     let sparsityThreshold: Float
 
-    init(outputPath: String = "genome.json", sparsityThreshold: Float = 1e-5) {
+    package init(outputPath: String = "genome.json", sparsityThreshold: Float = 1e-5) {
         self.outputPath = outputPath
         self.sparsityThreshold = sparsityThreshold
     }

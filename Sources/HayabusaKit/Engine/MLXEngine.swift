@@ -6,21 +6,29 @@ import MLXLLM
 import MLXLMCommon
 import Tokenizers
 
-final class MLXEngine: InferenceEngine, @unchecked Sendable {
+package final class MLXEngine: InferenceEngine, @unchecked Sendable {
     private let modelContainer: ModelContainer
     private let scheduler: MLXBatchScheduler
     private let memoryMonitor: MemoryMonitor
-    let modelDescription: String
+    package var modelDescription: String
     private let initialSlotCount: Int
-    let layerSkipConfig: LayerSkipConfig?
+    package let layerSkipConfig: LayerSkipConfig?
 
-    var slotCount: Int { scheduler.currentSlotCount }
+    package var slotCount: Int { scheduler.currentSlotCount }
 
-    init(modelId: String, slotCount: Int = 4, maxMemoryGB: Double? = nil, maxContext: Int? = nil,
+    package init(modelId: String, slotCount: Int = 4, maxMemoryGB: Double? = nil, maxContext: Int? = nil,
          layerSkipConfig: LayerSkipConfig? = nil) async throws {
         self.initialSlotCount = slotCount
 
-        let configuration = ModelConfiguration(id: modelId)
+        // HF hub ID (e.g. org/name) vs local directory (wizard passes ~/.cache/.../snapshots/<hash>)
+        let configuration: ModelConfiguration
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: modelId, isDirectory: &isDir), isDir.boolValue {
+            let url = URL(fileURLWithPath: modelId, isDirectory: true)
+            configuration = ModelConfiguration(directory: url)
+        } else {
+            configuration = ModelConfiguration(id: modelId)
+        }
 
         print("[MLX] Downloading/loading model: \(modelId)")
         print("[MLX] First download from Hugging Face can take several minutes; progress may stay at 0% until metadata resolves.")
@@ -115,7 +123,7 @@ final class MLXEngine: InferenceEngine, @unchecked Sendable {
         print("[MLX] Model loaded successfully (batch scheduler + memory monitor active)")
     }
 
-    func generate(
+    package func generate(
         messages: [ChatMessage],
         maxTokens: Int,
         temperature: Float,
@@ -137,11 +145,11 @@ final class MLXEngine: InferenceEngine, @unchecked Sendable {
         }
     }
 
-    func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
+    package func slotSummary() -> [(index: Int, state: String, priority: String, pos: Int32)] {
         scheduler.slotSummary()
     }
 
-    func collectGenome(config: GenomeConfig) async throws {
+    package func collectGenome(config: GenomeConfig) async throws {
         try await GenomeCollector.collect(
             from: modelContainer,
             modelName: modelDescription,
@@ -149,7 +157,7 @@ final class MLXEngine: InferenceEngine, @unchecked Sendable {
         )
     }
 
-    func memoryInfo() -> EngineMemoryInfo? {
+    package func memoryInfo() -> EngineMemoryInfo? {
         let info = memoryMonitor.latestInfo
         let pressure = memoryMonitor.currentPressure
         return EngineMemoryInfo(

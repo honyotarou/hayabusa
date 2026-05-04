@@ -2,16 +2,16 @@ import Foundation
 import HayabusaLocalPolicy
 import Hummingbird
 
-struct HayabusaServer {
-    let engine: any InferenceEngine
-    let port: Int
-    let bindAddress: String
-    let clusterManager: ClusterManager?
-    let speculativeDecoder: SpeculativeDecoder?
-    let kvQuantizeMode: KVQuantizeMode
-    let layerSkipConfig: LayerSkipConfig?
+package struct HayabusaServer {
+    package let engine: any InferenceEngine
+    package let port: Int
+    package let bindAddress: String
+    package let clusterManager: ClusterManager?
+    package let speculativeDecoder: SpeculativeDecoder?
+    package let kvQuantizeMode: KVQuantizeMode
+    package let layerSkipConfig: LayerSkipConfig?
 
-    init(
+    package init(
         engine: any InferenceEngine,
         port: Int,
         bindAddress: String = "127.0.0.1",
@@ -29,7 +29,19 @@ struct HayabusaServer {
         self.layerSkipConfig = layerSkipConfig
     }
 
-    func run() async throws {
+    /// Builds the Hummingbird application (e.g. for `.test(.live)` integration tests).
+    package func makeApplication() -> Application<Router<HayabusaRequestContext>.Responder> {
+        Application(
+            router: buildRouter(),
+            configuration: .init(address: .hostname(bindAddress, port: port))
+        )
+    }
+
+    package func run() async throws {
+        try await makeApplication().runService()
+    }
+
+    private func buildRouter() -> Router<HayabusaRequestContext> {
         let router = Router(context: HayabusaRequestContext.self)
         let engine = self.engine
         let clusterManager = self.clusterManager
@@ -186,10 +198,6 @@ struct HayabusaServer {
             return "{\(parts.joined(separator: ","))}"
         }
 
-        let app = Application(
-            router: router,
-            configuration: .init(address: .hostname(bindAddress, port: port))
-        )
-        try await app.runService()
+        return router
     }
 }

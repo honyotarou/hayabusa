@@ -1,9 +1,9 @@
-struct ChatMessage: Codable, Sendable {
+package struct ChatMessage: Codable, Sendable {
     let role: String
     let content: String
 }
 
-struct ChatRequest: Codable, Sendable {
+package struct ChatRequest: Codable, Sendable {
     let messages: [ChatMessage]
     let model: String?
     let max_tokens: Int?
