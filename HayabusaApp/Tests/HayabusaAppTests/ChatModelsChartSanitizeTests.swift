@@ -61,6 +61,24 @@ final class ChatModelsChartSanitizeTests: XCTestCase {
         XCTAssertFalse(response.text.contains("【S】"), response.text)
     }
 
+    func testChartText_fillsSubjectWhenSMikisaUsingUserFallback() throws {
+        let raw = """
+        S：未記載
+
+        O：右大腿外側痛あり。右下肢脱力感あり。腰椎・骨盤XP予定。神経学的所見要評価。
+
+        A：腰部打撲後。腰椎圧迫骨折、横突起骨折、外傷後腰椎神経根障害、椎間板ヘルニア、骨盤・股関節周囲損傷を鑑別。
+
+        P：腰椎XP、骨盤XP。神経脱落所見あればMRI/CTまたは高次医療機関紹介検討。鎮痛薬・外用薬処方、安静指導。筋力低下進行、膀胱直腸障害、会陰部感覚障害あれば救急受診指示。
+        """
+        let response = try decodeChatResponse(content: raw)
+        let user = "56歳男性、昨日脚立より転落し腰部打撲。右大腿外側痛・右下肢脱力感。"
+        let out = response.chartText(fallbackLastUserMessage: user)
+        XCTAssertFalse(out.contains("S：未記載"), out)
+        XCTAssertTrue(out.contains("脚立"), out)
+        XCTAssertTrue(out.hasPrefix("S：56"), out)
+    }
+
     private func decodeChatResponse(content: String) throws -> ChatResponse {
         let payload: [String: Any] = [
             "id": "x",

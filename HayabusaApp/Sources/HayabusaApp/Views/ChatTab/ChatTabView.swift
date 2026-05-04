@@ -79,6 +79,17 @@ struct ChatTabView: View {
             && appState.serverState == .running
     }
 
+    /// サーバー／モデルが `S：未記載` のまま返すときの補完用。UI に載せない再試行プロンプトは除外する。
+    private static func clinicalChartFallback(from messages: [(role: String, content: String)]) -> String? {
+        let users = messages.filter { $0.role == "user" }.map(\.content)
+        guard let last = users.last else { return nil }
+        let t = last.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.contains("直前の入力について"), users.count >= 2 {
+            return users[users.count - 2]
+        }
+        return last
+    }
+
     private func send() {
         let text = input.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty, !isLoading else { return }
@@ -86,6 +97,7 @@ struct ChatTabView: View {
         input = ""
         errorText = nil
         messages.append((role: "user", content: text))
+        let chartFallback = Self.clinicalChartFallback(from: messages)
         isLoading = true
 
         let apiMessages = [["role": "system", "content": Strings.Chat.systemPrompt]]
@@ -98,7 +110,8 @@ struct ChatTabView: View {
                     maxTokens: 1024,
                     temperature: 0.1
                 )
-                if response.text.contains("出力形式が崩れたため、再生成が必要です。") {
+                var display = response.chartText(fallbackLastUserMessage: chartFallback)
+                if display.contains("出力形式が崩れたため、再生成が必要です。") {
                     let retryMessages = apiMessages + [[
                         "role": "user",
                         "content": "直前の入力について、英語の思考過程・分析・チェックリストを一切出さず、必ず「S：」から始まる4行（S/O/A/P、各見出しは全角コロン）のみの日本語カルテを出力してください。"
@@ -108,8 +121,9 @@ struct ChatTabView: View {
                         maxTokens: 1024,
                         temperature: 0.0
                     )
+                    display = response.chartText(fallbackLastUserMessage: chartFallback)
                 }
-                messages.append((role: "assistant", content: response.text))
+                messages.append((role: "assistant", content: display))
             } catch {
                 errorText = error.localizedDescription
             }

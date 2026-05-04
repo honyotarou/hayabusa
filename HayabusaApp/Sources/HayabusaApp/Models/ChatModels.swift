@@ -47,8 +47,14 @@ struct ChatResponse: Decodable {
         let total_tokens: Int
     }
 
+    /// 生レスポンスのみ（ユーザー文脈なし）。可能なら `chartText(fallbackLastUserMessage:)` を使う。
     var text: String {
-        (choices.first?.message.content ?? "").sanitizedChartResponse
+        (choices.first?.message.content ?? "").sanitizedChartContent(fallbackLastUserMessage: nil)
+    }
+
+    /// 表示用。サーバーが `S：未記載` のまま返した場合に、直前のユーザー入力から S を補完する。
+    func chartText(fallbackLastUserMessage: String?) -> String {
+        (choices.first?.message.content ?? "").sanitizedChartContent(fallbackLastUserMessage: fallbackLastUserMessage)
     }
 }
 
@@ -69,7 +75,7 @@ private extension String {
         replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
     }
 
-    var sanitizedChartResponse: String {
+    func sanitizedChartContent(fallbackLastUserMessage: String?) -> String {
         var result = trimmingCharacters(in: .whitespacesAndNewlines).normalizedNewlines
 
         while let start = result.range(of: "<think>"),
@@ -94,7 +100,7 @@ private extension String {
             if result.containsBlockedThinkingText || result.looksLikeEnglishThinking || Self.isEmptyShortSOAPPlaceholder(result) {
                 return Self.shortFallbackChart
             }
-            return result.trimmingCharacters(in: .whitespacesAndNewlines)
+            return Self.finalizeCompleteShortSOAP(result, fallback: fallbackLastUserMessage)
         }
 
         if result.containsBlockedThinkingText || result.looksLikeEnglishThinking {
@@ -106,6 +112,134 @@ private extension String {
         }
 
         return Self.shortFallbackChart
+    }
+
+    // MARK: - S 補完（HayabusaKit の `shortSOAPFillingRedactedSubjectIfNeeded` と同型）
+
+    static func finalizeCompleteShortSOAP(_ text: String, fallback: String?) -> String {
+        let trimmed = stripTrailingChartJSONIfAny(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        return shortSOAPFillingRedactedSubjectIfNeeded(trimmed, fallback: fallback)
+    }
+
+    static func shortSOAPFillingRedactedSubjectIfNeeded(_ text: String, fallback: String?) -> String {
+        guard let fallback else { return text }
+        let n0 = text.normalizedNewlines.trimmingCharacters(in: .whitespacesAndNewlines)
+        let n = unifyShortSOAPHeaderLetters(n0)
+        guard hasCompleteShortSOAP(n) else { return text }
+        guard let sBody = extractShortSectionBody(n, start: "S：", endPrefixes: ["O："]),
+              let o = extractShortSectionBody(n, start: "O：", endPrefixes: ["A："]),
+              let a = extractShortSectionBody(n, start: "A：", endPrefixes: ["P："]),
+              let p = extractShortSectionBody(n, start: "P：", endPrefixes: [])
+        else { return text }
+        let sTrim = sBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard sTrim.isEmpty || sTrim == "未記載" else { return text }
+        let narrative = narrativeForRecovery(prefix: nil, fallback: fallback)
+        let hint = demographicsHint(prefix: nil, fallback: fallback)
+        let newS = syntheticSubjectLine(narrative: narrative, demographicsFrom: hint)
+        guard newS != "未記載" else { return text }
+        return """
+        S：\(newS)
+
+        O：\(o)
+
+        A：\(a)
+
+        P：\(p)
+        """
+    }
+
+    static func unifyShortSOAPHeaderLetters(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "Ｓ：", with: "S：")
+            .replacingOccurrences(of: "Ｏ：", with: "O：")
+            .replacingOccurrences(of: "Ａ：", with: "A：")
+            .replacingOccurrences(of: "Ｐ：", with: "P：")
+    }
+
+    static func narrativeForRecovery(prefix: String?, fallback: String?) -> String {
+        let p = prefix.flatMap { s in
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        let f = fallback.flatMap { s in
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        if let p, isUsableJapaneseNarrative(p) { return p }
+        if let f, isUsableJapaneseNarrative(f) { return f }
+        if let p { return p }
+        if let f { return f }
+        return "未記載"
+    }
+
+    static func isUsableJapaneseNarrative(_ s: String) -> Bool {
+        guard s.count >= 30 else { return false }
+        if containsBlockedThinkingTextStatic(s) || looksLikeEnglishThinkingStatic(s) { return false }
+        return true
+    }
+
+    static func demographicsHint(prefix: String?, fallback: String?) -> String? {
+        let parts = [prefix, fallback].compactMap { str -> String? in
+            guard let str else { return nil }
+            let t = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n")
+    }
+
+    static func extractDemographics(from text: String?) -> (age: String?, gender: String?) {
+        guard let text, !text.isEmpty else { return (nil, nil) }
+        var age: String?
+        if let range = text.range(of: #"\d{1,3}歳"#, options: .regularExpression) {
+            age = String(text[range]).replacingOccurrences(of: "歳", with: "")
+        }
+        let gender: String?
+        if text.contains("女性") {
+            gender = "女性"
+        } else if text.contains("男性") {
+            gender = "男性"
+        } else {
+            gender = nil
+        }
+        return (age, gender)
+    }
+
+    static func collapseWhitespace(_ s: String) -> String {
+        let parts = s.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        return parts.joined(separator: "。")
+    }
+
+    static func syntheticSubjectLine(narrative: String, demographicsFrom hint: String?) -> String {
+        let trimmed = narrative.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "未記載" {
+            return "未記載"
+        }
+        let oneLine = trimmed.replacingOccurrences(of: "\n", with: " ")
+        let tail = collapseWhitespace(oneLine)
+        let (age, gender) = extractDemographics(from: hint ?? trimmed)
+
+        if let age, let gender {
+            let dem = "\(age)歳\(gender)"
+            if tail.hasPrefix(dem + "。") || tail.hasPrefix(dem + "、") || tail.hasPrefix(dem) {
+                return String(tail.prefix(500))
+            }
+            return dem + "。" + tail
+        }
+        if let age {
+            let dem = "\(age)歳"
+            if tail.hasPrefix(dem + "。") || tail.hasPrefix(dem + "、") || tail.hasPrefix(dem) {
+                return String(tail.prefix(500))
+            }
+            return dem + "。" + tail
+        }
+        if let gender {
+            if tail.hasPrefix(gender + "。") || tail.hasPrefix(gender) {
+                return String(tail.prefix(500))
+            }
+            return gender + "。" + tail
+        }
+        return String(tail.prefix(500))
     }
 
     static func hasCompleteShortSOAP(_ text: String) -> Bool {
@@ -162,7 +296,7 @@ private extension String {
         return r
     }
 
-    var containsBlockedThinkingText: Bool {
+    static func containsBlockedThinkingTextStatic(_ text: String) -> Bool {
         let markers = [
             "No text before",
             "thinking process",
@@ -180,7 +314,11 @@ private extension String {
             "Output Rules",
             "Specific rules",
         ]
-        return markers.contains { self.localizedCaseInsensitiveContains($0) }
+        return markers.contains { text.localizedCaseInsensitiveContains($0) }
+    }
+
+    var containsBlockedThinkingText: Bool {
+        Self.containsBlockedThinkingTextStatic(self)
     }
 
     var normalizedChartMarkers: String {
@@ -212,11 +350,15 @@ private extension String {
         return sBody == "未記載" && oBody == "未記載"
     }
 
-    var looksLikeEnglishThinking: Bool {
-        let letters = unicodeScalars.filter { CharacterSet.letters.contains($0) }
+    static func looksLikeEnglishThinkingStatic(_ text: String) -> Bool {
+        let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
         guard letters.count >= 20 else { return false }
         let asciiLetters = letters.filter { $0.value < 128 }
         return Double(asciiLetters.count) / Double(letters.count) > 0.45
+    }
+
+    var looksLikeEnglishThinking: Bool {
+        Self.looksLikeEnglishThinkingStatic(self)
     }
 
     static var shortFallbackChart: String {
