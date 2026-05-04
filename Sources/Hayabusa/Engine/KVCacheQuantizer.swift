@@ -5,27 +5,28 @@ import CLlama
 enum KVQuantizeMode: String {
     case off       // float16 (default)
     case int8      // Q8_0 quantization (~50% memory reduction)
-    case tq3       // TQ3_0 TurboQuant 3-bit (~78% memory reduction)
-    case tq4       // TQ4_0 TurboQuant 4-bit (~72% memory reduction)
+    /// TurboQuant-style KV: uses ``GGML_TYPE_TQ2_0`` (ggml no longer exposes TQ3_0 names).
+    case tq3
+    /// ~4-bit KV: standard ``GGML_TYPE_Q4_0`` blocks.
+    case tq4
 
     /// Returns the GGML type for KV cache keys.
     var keyType: ggml_type {
         switch self {
         case .off:  return GGML_TYPE_F16
         case .int8: return GGML_TYPE_Q8_0
-        case .tq3:  return GGML_TYPE_TQ3_0
-        case .tq4:  return GGML_TYPE_TQ4_0
+        case .tq3:  return GGML_TYPE_TQ2_0
+        case .tq4:  return GGML_TYPE_Q4_0
         }
     }
 
     /// Returns the GGML type for KV cache values.
-    /// Both K and V caches use the same quantization type since Metal FA kernels now exist for TQ3/TQ4.
     var valueType: ggml_type {
         switch self {
         case .off:  return GGML_TYPE_F16
         case .int8: return GGML_TYPE_Q8_0
-        case .tq3:  return GGML_TYPE_TQ3_0
-        case .tq4:  return GGML_TYPE_TQ4_0
+        case .tq3:  return GGML_TYPE_TQ2_0
+        case .tq4:  return GGML_TYPE_Q4_0
         }
     }
 
@@ -33,8 +34,8 @@ enum KVQuantizeMode: String {
         switch self {
         case .off:  return "float16 (default)"
         case .int8: return "int8 (Q8_0, ~50% memory savings)"
-        case .tq3:  return "tq3 (TQ3_0, 3-bit TurboQuant, ~78% memory savings)"
-        case .tq4:  return "tq4 (TQ4_0, 4-bit TurboQuant, ~72% memory savings)"
+        case .tq3:  return "tq3 (GGML_TYPE_TQ2_0 turbo-style KV)"
+        case .tq4:  return "tq4 (GGML_TYPE_Q4_0 KV)"
         }
     }
 }
@@ -89,10 +90,10 @@ struct KVCacheQuantizer {
             let scaleOverhead = (totalElements / 32) * 2
             actualQuantizedBytes = totalElements * 1 + scaleOverhead
         case .tq3:
-            // K=TQ3_0 (14 bytes/32 elements) + V=TQ3_0 (14 bytes/32 elements)
+            // Approximate TQ2_0 block footprint (see ggml turbo-quant layouts).
             actualQuantizedBytes = (totalElements / 32) * 14
         case .tq4:
-            // K=TQ4_0 (18 bytes/32 elements) + V=TQ4_0 (18 bytes/32 elements)
+            // Q4_0: 18 bytes / 32 weights typical
             actualQuantizedBytes = (totalElements / 32) * 18
         }
 

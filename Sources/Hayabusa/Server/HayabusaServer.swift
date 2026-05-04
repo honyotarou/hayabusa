@@ -1,4 +1,5 @@
 import Foundation
+import HayabusaLocalPolicy
 import Hummingbird
 
 struct HayabusaServer {
@@ -29,7 +30,7 @@ struct HayabusaServer {
     }
 
     func run() async throws {
-        let router = Router()
+        let router = Router(context: HayabusaRequestContext.self)
         let engine = self.engine
         let clusterManager = self.clusterManager
         let speculativeDecoder = self.speculativeDecoder
@@ -46,6 +47,15 @@ struct HayabusaServer {
             let chatRequest = try await context.requestDecoder.decode(
                 ChatRequest.self, from: request, context: context
             )
+            let snapshots = chatRequest.messages.map { ($0.role, $0.content) }
+            if case let .failure(err) = LocalChatValidation.validate(
+                messages: snapshots,
+                maxTokens: chatRequest.max_tokens,
+                temperature: chatRequest.temperature,
+                limits: .localDeveloper
+            ) {
+                throw err.httpError()
+            }
 
             let result = try await engine.generate(
                 messages: chatRequest.messages,
