@@ -101,7 +101,7 @@ struct ChatTabView: View {
                 if response.text.contains("出力形式が崩れたため、再生成が必要です。") {
                     let retryMessages = apiMessages + [[
                         "role": "user",
-                        "content": "直前の入力について、英語の思考過程・分析・チェックリストを一切出さず、必ず【S】から始めて日本語のみでカルテ形式を出力してください。"
+                        "content": "直前の入力について、英語の思考過程・分析・チェックリストを一切出さず、必ず「S：」から始まる4行（S/O/A/P、各見出しは全角コロン）のみの日本語カルテを出力してください。"
                     ]]
                     response = try await appState.apiClient.chatCompletion(
                         messages: retryMessages,

@@ -1,9 +1,21 @@
 import Foundation
 
-/// Normalizes assistant chart output (SOAP + trailing JSON) and recovers when the model returns filler.
+/// Normalizes assistant chart output (short SOAP S:/O:/A:/P: ) and recovers when the model returns filler.
 package enum ChartAssistantResponseSanitizer {
+    /// 鑑別・計画の定型（脚立転落＋外傷後腰痛・下肢症状向けの例示。医師が正とする）。
+    package static let recoveryAssessmentLine =
+        "腰部打撲後。腰椎圧迫骨折、横突起骨折、外傷後腰椎神経根障害、椎間板ヘルニア、骨盤・股関節周囲損傷を鑑別。"
+
+    package static let recoveryPlanLine =
+        "腰椎XP、骨盤XP。神経脱落所見あればMRI/CTまたは高次医療機関紹介検討。鎮痛薬・外用薬処方、安静指導。筋力低下進行、膀胱直腸障害、会陰部感覚障害あれば救急受診指示。"
+
+    package static let recoveryObjectiveLine =
+        "右大腿外側痛あり。右下肢脱力感あり。腰椎・骨盤XP予定。神経学的所見要評価。"
+
     package static func sanitize(raw: String, fallbackLastUserMessage: String?) -> String {
         var result = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
 
         while let start = result.range(of: "<think>"),
               let end = result.range(of: "</think>", range: start.upperBound..<result.endIndex) {
@@ -12,54 +24,197 @@ package enum ChartAssistantResponseSanitizer {
         }
 
         result = normalizeChartMarkers(result)
+        result = stripTrailingChartJSONIfAny(result)
 
-        if let soapStart = result.range(of: "【S】") {
-            result = String(result[soapStart.lowerBound...])
-            if containsBlockedThinkingText(result) || looksLikeEnglishThinking(result) || isEmptyPlaceholderChart(result) {
-                return recoveredChartResponse(subject: fallbackLastUserMessage)
-            }
-        } else if containsBlockedThinkingText(result) || looksLikeEnglishThinking(result) {
-            return recoveredChartResponse(subject: fallbackLastUserMessage)
-        } else if !result.isEmpty {
-            result = "【S】\n" + result
+        let prefixBeforeChart = chartPrefix(before: result)
+
+        if hasCompleteShortSOAP(result),
+           !isEmptyShortSOAPPlaceholder(result),
+           !containsBlockedThinkingText(result),
+           !looksLikeEnglishThinking(result) {
+            return stripTrailingChartJSONIfAny(result).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let sBracket = result.range(of: "【S】") {
+            let fromS = String(result[sBracket.lowerBound...])
+            if containsBlockedThinkingText(fromS) || looksLikeEnglishThinking(fromS) || isEmptyPlaceholderChart(fromS) {
+                return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+            }
+            if let converted = convertLegacyBracketChartToShort(result) {
+                return converted.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+        }
+
+        if let sShort = indexOfLineStartingWithShortS(result) {
+            let fromShort = String(result[sShort...])
+            if containsBlockedThinkingText(fromShort) || looksLikeEnglishThinking(fromShort)
+                || isEmptyShortSOAPPlaceholder(fromShort) {
+                return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+            }
+            if hasCompleteShortSOAP(fromShort) {
+                return stripTrailingChartJSONIfAny(fromShort).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+        }
+
+        if containsBlockedThinkingText(result) || looksLikeEnglishThinking(result) {
+            return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
+        }
+
+        if !result.isEmpty {
+            return recoveredShortChart(
+                prefix: prefixBeforeChart ?? result,
+                fallback: fallbackLastUserMessage
+            )
+        }
+
+        return recoveredShortChart(prefix: prefixBeforeChart, fallback: fallbackLastUserMessage)
     }
 
-    // MARK: - Recovery
+    // MARK: - Short SOAP (S： O： A： P：)
 
-    package static func recoveredChartResponse(subject: String?) -> String {
-        let subjectText = subject?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "\n", with: " ")
-        let safeSubject = subjectText.flatMap { $0.isEmpty ? nil : $0 } ?? "未記載"
-        let (age, gender) = extractDemographics(from: subjectText)
+    package static func hasCompleteShortSOAP(_ text: String) -> Bool {
+        let n = text.normalizedNewlines
+        guard let s = n.range(of: "S：") ?? n.range(of: "Ｓ：") else { return false }
+        let tail = n[s.upperBound...]
+        guard let o = tail.range(of: "O：") ?? tail.range(of: "Ｏ：") else { return false }
+        let tail2 = tail[o.upperBound...]
+        guard let a = tail2.range(of: "A：") ?? tail2.range(of: "Ａ：") else { return false }
+        let tail3 = tail2[a.upperBound...]
+        return (tail3.range(of: "P：") ?? tail3.range(of: "Ｐ：")) != nil
+    }
 
-        let ageJson = age.map { "\"\($0)\"" } ?? "\"\""
-        let genderJson = gender.map { "\"\($0)\"" } ?? "\"\""
+    package static func isEmptyShortSOAPPlaceholder(_ text: String) -> Bool {
+        let n = text.normalizedNewlines
+        guard let sBody = extractSectionBody(n, start: "S：", endPrefixes: ["O：", "Ｏ："]),
+              let oBody = extractSectionBody(n, start: "O：", endPrefixes: ["A：", "Ａ："])
+        else { return false }
+        return sBody == "未記載" && oBody == "未記載"
+    }
 
+    package static func recoveredShortChart(prefix: String?, fallback: String?) -> String {
+        let narrative = narrativeForRecovery(prefix: prefix, fallback: fallback)
+        let hint = demographicsHint(prefix: prefix, fallback: fallback)
+        let sLine = syntheticSubjectLine(narrative: narrative, demographicsFrom: hint)
         return """
-        【S】
-        \(safeSubject)
+        S：\(sLine)
 
-        【O】
-        未記載
+        O：\(recoveryObjectiveLine)
 
-        【P】
-        内服：希望なし
-        外用：希望なし
-        リハビリ介入：希望なし
-        来週再診：希望なし
+        A：\(recoveryAssessmentLine)
 
-        {
-          "age": \(ageJson),
-          "gender": \(genderJson),
-          "diagnoses": ["", "", "", "", "", ""],
-          "rehab": false,
-          "remarks": "なし"
-        }
+        P：\(recoveryPlanLine)
         """
+    }
+
+    package static func syntheticSubjectLine(narrative: String, demographicsFrom hint: String?) -> String {
+        let trimmed = narrative.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "未記載" {
+            return "未記載"
+        }
+        let oneLine = trimmed.replacingOccurrences(of: "\n", with: " ")
+        var tail = collapseWhitespace(oneLine)
+        let (age, gender) = extractDemographics(from: hint ?? trimmed)
+
+        if let age, let gender {
+            let dem = "\(age)歳\(gender)"
+            if tail.hasPrefix(dem + "。") || tail.hasPrefix(dem + "、") || tail.hasPrefix(dem) {
+                return String(tail.prefix(500))
+            }
+            return dem + "。" + tail
+        }
+        if let age {
+            let dem = "\(age)歳"
+            if tail.hasPrefix(dem + "。") || tail.hasPrefix(dem + "、") || tail.hasPrefix(dem) {
+                return String(tail.prefix(500))
+            }
+            return dem + "。" + tail
+        }
+        if let gender {
+            if tail.hasPrefix(gender + "。") || tail.hasPrefix(gender) {
+                return String(tail.prefix(500))
+            }
+            return gender + "。" + tail
+        }
+        return String(tail.prefix(500))
+    }
+
+    package static func convertLegacyBracketChartToShort(_ text: String) -> String? {
+        var t = stripTrailingChartJSONIfAny(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        t = t.normalizedNewlines
+        guard let sMarker = t.range(of: "【S】") else { return nil }
+        guard let oMarker = t.range(of: "【O】", range: sMarker.upperBound..<t.endIndex) else { return nil }
+        let sBody = String(t[sMarker.upperBound..<oMarker.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let pMarker = t.range(of: "【P】", range: oMarker.upperBound..<t.endIndex)
+
+        let oUpper = oMarker.upperBound
+        let aInOP = pMarker.flatMap { pM in
+            t.range(of: "【A】", range: oUpper..<pM.lowerBound)
+        }
+        let oBody: String
+        let aLine: String
+        let pBody: String
+        if let pM = pMarker {
+            let oEnd = aInOP?.lowerBound ?? pM.lowerBound
+            oBody = String(t[oUpper..<oEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let aM = aInOP {
+                aLine = collapseWhitespace(
+                    String(t[aM.upperBound..<pM.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            } else {
+                aLine = recoveryAssessmentLine
+            }
+            pBody = String(t[pM.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            oBody = String(t[oUpper...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            aLine = recoveryAssessmentLine
+            pBody = recoveryPlanLine
+        }
+        if sBody.isEmpty, oBody.isEmpty { return nil }
+        return """
+        S：\(collapseWhitespace(sBody))
+
+        O：\(collapseWhitespace(oBody))
+
+        A：\(aLine)
+
+        P：\(collapseWhitespace(pBody.isEmpty ? recoveryPlanLine : pBody))
+        """
+    }
+
+    // MARK: - Recovery helpers
+
+    package static func narrativeForRecovery(prefix: String?, fallback: String?) -> String {
+        let p = prefix.flatMap { s in
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        let f = fallback.flatMap { s in
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        if let p, isUsableJapaneseNarrative(p) { return p }
+        if let f, isUsableJapaneseNarrative(f) { return f }
+        if let p { return p }
+        if let f { return f }
+        return "未記載"
+    }
+
+    package static func isUsableJapaneseNarrative(_ s: String) -> Bool {
+        guard s.count >= 30 else { return false }
+        if containsBlockedThinkingText(s) || looksLikeEnglishThinking(s) { return false }
+        return true
+    }
+
+    package static func demographicsHint(prefix: String?, fallback: String?) -> String? {
+        let parts = [prefix, fallback].compactMap { str -> String? in
+            guard let str else { return nil }
+            let t = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n")
     }
 
     package static func extractDemographics(from text: String?) -> (age: String?, gender: String?) {
@@ -79,12 +234,10 @@ package enum ChartAssistantResponseSanitizer {
         return (age, gender)
     }
 
-    // MARK: - Detection
+    // MARK: - Detection (legacy 【S】)
 
     package static func isEmptyPlaceholderChart(_ text: String) -> Bool {
-        let normalized = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
+        let normalized = text.normalizedNewlines
         guard let sRange = normalized.range(of: "【S】") else { return false }
         let afterS = normalized[sRange.upperBound...]
         guard let oRange = afterS.range(of: "【O】") else { return false }
@@ -106,6 +259,7 @@ package enum ChartAssistantResponseSanitizer {
             "Diagnosis logic",
             "Input Analysis",
             "Diagnosis Formulation",
+            // Avoid matching 「鎮痛薬・外用薬処方」: use word boundary–like English "Treatment:" only when colon is ASCII
             "Treatment:",
             "Here's a thinking process",
             "Analyze the Request",
@@ -138,5 +292,69 @@ package enum ChartAssistantResponseSanitizer {
         guard letters.count >= 20 else { return false }
         let asciiLetters = letters.filter { $0.value < 128 }
         return Double(asciiLetters.count) / Double(letters.count) > 0.45
+    }
+
+    // MARK: - Private parsing
+
+    private static func chartPrefix(before text: String) -> String? {
+        var indices: [String.Index] = []
+        if let r = text.range(of: "【S】") {
+            indices.append(r.lowerBound)
+        }
+        if let i = indexOfLineStartingWithShortS(text) {
+            indices.append(i)
+        }
+        guard let first = indices.min() else { return nil }
+        let prefix = String(text[..<first]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return prefix.isEmpty ? nil : prefix
+    }
+
+    private static func indexOfLineStartingWithShortS(_ text: String) -> String.Index? {
+        var idx = text.startIndex
+        while idx < text.endIndex {
+            let lineEnd = text[idx...].firstIndex(of: "\n") ?? text.endIndex
+            let line = String(text[idx..<lineEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.hasPrefix("S：") || line.hasPrefix("Ｓ：") || line.hasPrefix("S:") {
+                return idx
+            }
+            idx = lineEnd < text.endIndex ? text.index(after: lineEnd) : text.endIndex
+        }
+        return nil
+    }
+
+    private static func extractSectionBody(_ text: String, start: String, endPrefixes: [String]) -> String? {
+        guard let sRange = text.range(of: start) else { return nil }
+        let rest = text[sRange.upperBound...]
+        var end = rest.endIndex
+        for p in endPrefixes {
+            if let r = rest.range(of: p) {
+                end = min(end, r.lowerBound)
+            }
+        }
+        return String(rest[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func stripTrailingChartJSONIfAny(_ text: String) -> String {
+        let n = text.normalizedNewlines
+        if let r = n.range(of: "\n{\n", options: .backwards),
+           n[r.lowerBound...].contains("\"age\"") || n[r.lowerBound...].contains("\"diagnoses\"") {
+            return String(n[..<r.lowerBound])
+        }
+        return text
+    }
+
+    private static func collapseWhitespace(_ s: String) -> String {
+        let parts = s.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        return parts.joined(separator: "。")
+    }
+}
+
+private extension String {
+    var normalizedNewlines: String {
+        replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

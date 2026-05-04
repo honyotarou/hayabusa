@@ -18,5 +18,10 @@ let package = Package(
                 .process("../../Resources"),
             ]
         ),
+        .testTarget(
+            name: "HayabusaAppTests",
+            dependencies: ["HayabusaApp"],
+            path: "Tests/HayabusaAppTests"
+        ),
     ]
 )

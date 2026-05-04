@@ -68,10 +68,11 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         """)
 
         XCTAssertFalse(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
-        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("S："), text)
         XCTAssertTrue(text.contains("56歳男性、脚立から落ちて腰痛と右足痛"), text)
-        XCTAssertTrue(text.contains("【O】"), text)
-        XCTAssertTrue(text.contains("未記載"), text)
+        XCTAssertTrue(text.contains("O："), text)
+        XCTAssertTrue(text.contains("A："), text)
+        XCTAssertTrue(text.contains("P："), text)
         XCTAssertFalse(text.contains("No content before"), text)
         XCTAssertFalse(text.contains("Analyze the Input"), text)
         XCTAssertFalse(text.contains("56-year-old male"), text)
@@ -93,9 +94,9 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         """)
 
         XCTAssertFalse(text.contains("出力形式が崩れたため、再生成が必要です。"), text)
-        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("S："), text)
         XCTAssertTrue(text.contains("56歳男性、脚立から落ちて腰痛と右足痛"), text)
-        XCTAssertTrue(text.contains("【P】"), text)
+        XCTAssertTrue(text.contains("P："), text)
         XCTAssertFalse(text.contains("Analyze the Input"), text)
         XCTAssertFalse(text.contains("Drafting the Content"), text)
         XCTAssertFalse(text.contains("Chief Complaint"), text)
@@ -119,9 +120,11 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         """)
 
         XCTAssertFalse(text.contains("余計な前置き"), text)
-        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("S："), text)
         XCTAssertTrue(text.contains("56歳男性"), text)
-        XCTAssertTrue(text.contains("【O】"), text)
+        XCTAssertTrue(text.contains("O："), text)
+        XCTAssertTrue(text.contains("A："), text)
+        XCTAssertTrue(text.contains("P："), text)
     }
 
     /// Matches common MLX output: blank lines after 【S】/【O】 so legacy `【S】\n未記載` substring check failed.
@@ -159,8 +162,9 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
 
         let content = try assistantMessageContent(chatCompletionJSON: text)
         XCTAssertTrue(content.contains("56歳男性昨日、脚立から落ちて腰を打った"), content)
-        XCTAssertTrue(content.contains("\"age\": \"56\""), content)
-        XCTAssertTrue(content.contains("\"gender\": \"男性\""), content)
+        XCTAssertTrue(content.hasPrefix("S："), content)
+        XCTAssertTrue(content.contains("O："), content)
+        XCTAssertFalse(content.contains("\"age\""), content)
     }
 
     func testPOSTChatCompletionsRecoversEmptyAsciiBracketChart() async throws {
@@ -193,12 +197,12 @@ final class HayabusaHTTPIntegrationTests: XCTestCase {
         {"messages":[{"role":"user","content":"56歳男性昨日、脚立から落ちて腰を打ったために、今日になって腰と右足が痛くなってきました。右太ももの外側が痛み、足に力が入りません。"}],"max_tokens":16}
         """)
 
-        XCTAssertTrue(text.contains("【S】"), text)
+        XCTAssertTrue(text.contains("S："), text)
         XCTAssertFalse(text.contains("[S]"), text)
         XCTAssertTrue(text.contains("56歳男性昨日、脚立から落ちて腰を打った"), text)
-        XCTAssertFalse(text.contains("【S】\\n未記載"), text)
-        XCTAssertTrue(text.contains("【O】"), text)
-        XCTAssertTrue(text.contains("【P】"), text)
+        XCTAssertTrue(text.contains("O："), text)
+        XCTAssertTrue(text.contains("A："), text)
+        XCTAssertTrue(text.contains("P："), text)
     }
 
     func testPOSTChatCompletionsValidationRejectsBadTemperature() async throws {
