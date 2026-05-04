@@ -8,8 +8,11 @@ let package = Package(
     name: "Hayabusa",
     platforms: [.macOS(.v14)],
     dependencies: [
+        .package(path: "LocalPolicy"),
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
+        .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.0.0"),
     ],
     targets: [
         .target(
@@ -39,9 +42,13 @@ let package = Package(
         .executableTarget(
             name: "Hayabusa",
             dependencies: [
+                .product(name: "HayabusaLocalPolicy", package: "LocalPolicy"),
                 .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "HuggingFace", package: "swift-huggingface"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 "CLlama",
             ],
             path: "Sources/Hayabusa"

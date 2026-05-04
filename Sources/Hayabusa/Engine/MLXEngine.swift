@@ -1,7 +1,10 @@
 import Foundation
+import HuggingFace
 import MLX
+import MLXHuggingFace
 import MLXLLM
 import MLXLMCommon
+import Tokenizers
 
 final class MLXEngine: InferenceEngine, @unchecked Sendable {
     private let modelContainer: ModelContainer
@@ -21,6 +24,8 @@ final class MLXEngine: InferenceEngine, @unchecked Sendable {
 
         print("[MLX] Downloading/loading model: \(modelId)")
         self.modelContainer = try await LLMModelFactory.shared.loadContainer(
+            from: #hubDownloader(),
+            using: #huggingFaceTokenizerLoader(),
             configuration: configuration,
             progressHandler: { progress in
                 if progress.fractionCompleted < 1.0 {
